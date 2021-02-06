@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="emploi-lib" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin\Debug\emploi-lib" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\Debug\" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option parameters="-f lycee-sec-siliana-final-mixte1.gedt -hl 90.0 -ll 0.0 -ml 68.0" />
+				<Option host_application="bin\Debug\test-dll.exe" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O3" />
+					<Add option="-O2" />
+					<Add option="-O1" />
+					<Add option="-O" />
+					<Add option="-Wall" />
+					<Add option="-g" />
+					<Add option="-DBUILD_DLL" />
+					<Add directory="C:\c-test-projects\emploi-lib\Console" />
+					<Add directory="C:\c-test-projects\emploi-lib\engine12" />
+				</Compiler>
+				<Linker>
+					<Add library="user32" />
+				</Linker>
+			</Target>
+			<Target title="Release">
+				<Option output="bin\Release\emploi-lib" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\Release\" />
+				<Option type="3" />
+				<Option compiler="gcc" />
+				<Option parameters="-f lycee-sec-siliana-final-mixte1.edt -hl 90.0 -ll 0.0 -ml 80.0" />
+				<Option host_application="bin\Debug\test-dll.exe" />
+				<Option createDefFile="1" />
+				<Option createStaticLib="1" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-Os" />
+					<Add option="-O3" />
+					<Add option="-O2" />
+					<Add option="-O1" />
+					<Add option="-O" />
+					<Add option="-Wall" />
+					<Add option="-DBUILD_DLL" />
+					<Add directory="C:\c-test-projects\emploi-lib\Console" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+					<Add library="user32" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add directory="C:\c-test-projects\emploi-lib\engine13" />
+		</Compiler>
+		<Unit filename="Console\console.cpp" />
+		<Unit filename="Console\console.h" />
+		<Unit filename="I_engine.h" />
+		<Unit filename="cfilestream.cpp" />
+		<Unit filename="cfilestream.h" />
+		<Unit filename="classes.h" />
+		<Unit filename="emploi-lib.cpp" />
+		<Unit filename="emploi-lib.def" />
+		<Unit filename="emploi-lib.h" />
+		<Unit filename="engine12\engine.cpp" />
+		<Unit filename="engine12\engine.h" />
+		<Unit filename="solution.cpp" />
+		<Unit filename="solution.h" />
+		<Extensions>
+			<code_completion />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

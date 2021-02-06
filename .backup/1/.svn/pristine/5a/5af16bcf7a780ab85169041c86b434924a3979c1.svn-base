@@ -1,0 +1,72 @@
+# depslib dependency file v1.0
+1348398957 source:c:\c-test-projects\emploi-lib\cfilestream.cpp
+	<iostream>
+	<stdio.h>
+	<stdlib.h>
+	"cfilestream.h"
+
+1347954999 c:\c-test-projects\emploi-lib\cfilestream.h
+	<windows.h>
+
+1348898283 source:c:\c-test-projects\emploi-lib\emploi-lib.cpp
+	"emploi-lib.h"
+
+1349282400 c:\c-test-projects\emploi-lib\emploi-lib.h
+	<windows.h>
+	"I_engine.h"
+	"engine13/engine.h"
+
+1349038959 c:\c-test-projects\emploi-lib\i_engine.h
+	<windef.h>
+	"classes.h"
+	"solution.h"
+
+1349505569 c:\c-test-projects\emploi-lib\classes.h
+	<cstdlib>
+
+1349504301 c:\c-test-projects\emploi-lib\solution.h
+	<windows.h>
+	"classes.h"
+	"cfilestream.h"
+
+1350432346 c:\c-test-projects\emploi-lib\engine13\engine.h
+	<cstring>
+	<ctime>
+	"../solution.h"
+	"../I_engine.h"
+
+1350090600 source:c:\c-test-projects\emploi-lib\solution.cpp
+	<stdio.h>
+	"console.h"
+	"solution.h"
+
+1348296184 c:\c-test-projects\emploi-lib\console\console.h
+	<iostream>
+	<cstdlib>
+	<cstring>
+	<stdio.h>
+	<sstream>
+	<conio.h>
+	<windows.h>
+	<termios.h>
+	<unistd.h>
+	<fcntl.h>
+	"keys.h"
+	"ConsoleColor.h"
+
+1309632383 c:\c-test-projects\emploi-lib\console\keys.h
+
+1348160575 c:\c-test-projects\emploi-lib\console\consolecolor.h
+
+1349129607 source:c:\c-test-projects\emploi-lib\console\console.cpp
+	"console.h"
+	"ConsoleMode.h"
+
+1348399930 c:\c-test-projects\emploi-lib\console\consolemode.h
+
+1350090621 source:c:\c-test-projects\emploi-lib\engine13\engine.cpp
+	<cstring>
+	<ctime>
+	"console.h"
+	"engine.h"
+

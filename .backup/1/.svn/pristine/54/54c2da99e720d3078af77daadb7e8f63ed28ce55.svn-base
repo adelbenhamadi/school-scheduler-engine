@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="emploi-no-lib" />
+		<Option platforms="Windows;" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option platforms="Windows;" />
+				<Option output="bin\Debug\emploi1" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\Debug\" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters="-f lycee-sec-siliana-final-mixte1.edt -hl 90.0 -ll 0.0 -ml 80.0" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O3" />
+					<Add option="-O2" />
+					<Add option="-O1" />
+					<Add option="-O" />
+					<Add option="-g" />
+					<Add directory="C:\c-test-projects\emploi-lib\engine13" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+				<Environment>
+					<Variable name="e_engine" value="engine12" />
+				</Environment>
+			</Target>
+			<Target title="Release">
+				<Option output="bin\Release\emploi1" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj\Release\" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-fexpensive-optimizations" />
+					<Add option="-O3" />
+					<Add option="-O2" />
+					<Add option="-O1" />
+					<Add option="-O" />
+					<Add option="-pg" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+					<Add option="-pg -lgmon" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="-march=i686" />
+			<Add option="-fexpensive-optimizations" />
+			<Add option="-O3" />
+			<Add option="-O2" />
+			<Add option="-O1" />
+			<Add option="-O" />
+			<Add directory="Console" />
+		</Compiler>
+		<Unit filename="Console\ConsoleColor.h" />
+		<Unit filename="Console\ConsoleMode.h" />
+		<Unit filename="Console\console.cpp" />
+		<Unit filename="Console\console.h" />
+		<Unit filename="Console\keys.h" />
+		<Unit filename="I_engine.h" />
+		<Unit filename="cfilestream.cpp" />
+		<Unit filename="cfilestream.h" />
+		<Unit filename="classes.h" />
+		<Unit filename="engine13\engine.cpp" />
+		<Unit filename="engine13\engine.h" />
+		<Unit filename="main-no-lib.cpp" />
+		<Unit filename="solution.cpp" />
+		<Unit filename="solution.h" />
+		<Extensions>
+			<code_completion />
+			<debugger />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

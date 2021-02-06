@@ -30,3 +30,29 @@
 *.exe
 *.out
 *.app
+
+# backups
+*/.backup
+
+# data
+*/data
+
+# codeblocks project files
+*.cbp
+*.layout
+*.depend
+*.def
+
+# eclipse project files
+.cproject
+.project
+.settings
+
+#  CMake stuff
+CMakeCache.txt
+CMakeFiles
+
+# output dir
+obj
+out
+bin

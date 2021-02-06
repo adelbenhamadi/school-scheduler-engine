@@ -1,0 +1,3 @@
+test-dll.exe -f lycee-sec-siliana-final-mixte1.gedt -hl 90.0 -ll 80.0 -ml 78.0
+rem emploi11.exe -f lycee-sec-siliana-final-mixte1.gedt -hl 90.0 -ll 80.0 -ml 80.0
+rem emploi13.exe -f lycee-sec-siliana-final-mixte1.gedt -hl 90.0 -ll 80.0 -ml 80.0

@@ -1,0 +1,16 @@
+FILE(REMOVE_RECURSE
+  "CMakeFiles/emploilib.dir/emploi-lib.cpp.obj"
+  "CMakeFiles/emploilib.dir/solution.cpp.obj"
+  "CMakeFiles/emploilib.dir/cfilestream.cpp.obj"
+  "CMakeFiles/emploilib.dir/engine13/engine.cpp.obj"
+  "CMakeFiles/emploilib.dir/Console/console.cpp.obj"
+  "libemploilib.pdb"
+  "libemploilib.dll"
+  "libemploilib.dll.a"
+  "libemploilib.dll.manifest"
+)
+
+# Per-language clean rules from dependency scanning.
+FOREACH(lang CXX)
+  INCLUDE(CMakeFiles/emploilib.dir/cmake_clean_${lang}.cmake OPTIONAL)
+ENDFOREACH(lang)

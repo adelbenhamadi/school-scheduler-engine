@@ -1,0 +1,5 @@
+LIBRARY         emploi-lib.dll
+DESCRIPTION  'provides interface to I_Engine_Intf
+EXPORTS
+                GetEngineInterface
+                FreeEngineInterface
