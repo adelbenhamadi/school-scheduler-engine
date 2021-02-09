@@ -172,7 +172,7 @@ bool Console::KeyDown()
 {
 #ifdef _WIN32
 #ifdef _MSC_VER
-    return _kbhit()
+    return _kbhit();
 #else
     return kbhit();
 #endif
