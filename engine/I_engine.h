@@ -9,15 +9,16 @@
 struct I_Engine_Intf
 {
 
-  //virtual CemSolution solution()=0;
-  virtual bool  Load(CEngineConfig *ecfg)=0;
-  virtual bool  Release()=0;
-  virtual CEnginePlugin* getPluginInfo()=0;
+  virtual bool  load(CEngineConfig cfg)=0;
+  virtual bool  release()=0;
+  virtual CEnginePlugin pluginInfo()=0;
+  virtual CemSolution solution() = 0;
+  virtual CEngineConfig config() = 0;
   virtual void execute(bool _first ,bool _new)=0;
   virtual bool  verifySolution(bool b)=0;
   virtual bool  getOptimizeValue(int *hp,int*hc,int*cp,int*cc)=0;
-  virtual bool  Save(const char* fn)=0;
-  virtual int SeancesCount()=0;
+  virtual bool  save(const char* fn)=0;
+  virtual int shiftsCount()=0;
 };
 
 /*
