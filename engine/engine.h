@@ -29,22 +29,24 @@ public:
     virtual ~emEngine();
     void execute(bool _first ,bool _new);
 
-    bool Release();
+    bool release();
     bool verifySolution(bool b);
     bool getOptimizeValue(int *hp,int*hc,int*cp,int*cc);
-    bool Load(CEngineConfig *ecfg);
-    bool Save(const char* fn);
-    CEnginePlugin*   getPluginInfo();
+    bool load(CEngineConfig cfg);
+    bool save(const char* fn);
+    int shiftsCount();
 
-    int SeancesCount();
+    CEnginePlugin   pluginInfo() { return _pluginInfo; }
+    CemSolution solution() { return _solution; }
+    CEngineConfig config() { return _engineConfig; }
 protected:
 
-    void NextDay();
+    void nextDay();
     void initStartDay();
     void doFill();
     void doRandomize();
     void doSort(const bool ascendant);
-    void doShellSort(const bool ascendant);
+    //void doShellSort(const bool ascendant);
     void doQuickSort(const bool ascendant,const int p,const int r);
     int doPartition(const int p,const int r);
     unsigned long getProcessArrayChecksum();
@@ -52,32 +54,33 @@ protected:
     void swapValues(const int v,const int w);
     bool moveIndex(int i1,int i2);
     int checkEmptyDT();
-    int CheckIsEmpty();
+    int checkIsEmpty();
 
-    bool RempliSalle(bool ABool=true);
+    bool fillCroom(bool ABool=true);
 
-    void Initialize(const bool AReset);
-    bool Process();
-    bool StartSearching();
+    void initialize(const bool AReset);
+    bool process();
+    bool startSearching();
     void doFillConstraintMap();
+   
 private:
-    CEngineConfig *econfig;
-    CemSolution solution;
-    CEnginePlugin* pluginInfo;
+    CEngineConfig  _engineConfig;
+    CemSolution _solution;
+    CEnginePlugin _pluginInfo;
     CMapDayTable *FMatMapArray;
     //bool FMatMapArray[MAX_CLASSE_COUNT][MAX_MAT_COUNT][6];
-    CBitDayTable *FMapClasseBitDT_A,*FMapSalleBitDT_A,*FMapProfBitDT_A,
-    *FMapClasseBitDT_B,*FMapSalleBitDT_B,*FMapProfBitDT_B;
-    CMapDayHoursTable *FmdtMat_b,*FmdtProf_b,*FmdtClasse_b,*FmdtSalle_b;
-    CMapDayHoursTable *FmdtMat_e,*FmdtProf_e,*FmdtClasse_e,*FmdtSalle_e;
-    CMapHourTable *FmhtDuree_b,*FmhtDuree_e;
-    CDayTable*FTypeSalleMapArray;
+    CBitDayTable *FMapClasseBitDT_A,*FMapCroomBitDT_A,*FMapProfBitDT_A,
+    *FMapClasseBitDT_B,*FMapCroomBitDT_B,*FMapProfBitDT_B;
+    CMapDayHoursTable *FmdtMat_b,*FmdtProf_b,*FmdtClasse_b,*FmdtCroom_b;
+    CMapDayHoursTable *FmdtMat_e,*FmdtProf_e,*FmdtClasse_e,*FmdtCroom_e;
+    CMapHourTable *FmhtLength_b,*FmhtLength_e;
+    CDayTable*FTypeCroomMapArray;
     CProcessLevelRecord *FMatProcessMap;
 
-    int curcindex,curmindex,curpindex,cursindex,curduree,curfday;
+    int curcindex,curmindex,curpindex,cursindex,curlength,curfday;
     unsigned long FProcessArrayChecksum;
-    int max_processed_seances,last_max_processed_seances,highlevel_process_count,
-    lowlevel_process_count,process_tries_count,all_processed_seances,process_last_progession;
+    int max_processed_shifts,last_max_processed_shifts,highlevel_process_count,
+    lowlevel_process_count,process_tries_count,all_processed_shifts,process_last_progession;
     int* FProcessArray;
     int FProcessArrayLength;
 
@@ -87,16 +90,16 @@ private:
     CFillOption tmpfo;
     bool isForbiddenday;
     int class_se,sse,pse;
-    bool bcangroup,byquinz;
-    //CDayTable* ProfDT,*SalleDT,*ClasseDT;
-    CBitDayTable * ProfBitDT,*SalleBitDT,*ClasseBitDT;
-    CSeance*curSeance;
-    /* CSalle*curSalle;
+    bool bcangroup,every2weeks;
+    //CDayTable* ProfDT,*CroomDT,*ClasseDT;
+    CBitDayTable * ProfBitDT,*CroomBitDT,*ClasseBitDT;
+    CShift*curShift;
+    /* CCroom*curCroom;
      CProf*curProf;
      CMat*curMat;
      CClasse*curClasse;*/
-    int PrSalle,PrDay,PrStartDay,PrHour,PrEndhour;
-    int seances_count,salles_count,classes_count,
+    int PrCroom,PrDay,PrStartDay,PrHour,PrEndhour;
+    int shifts_count,crooms_count,classes_count,
     prof_count, mat_count;
     time_t ptime,stime;
     double process_percent;

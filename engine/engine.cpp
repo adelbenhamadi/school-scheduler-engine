@@ -1,5 +1,6 @@
 
 #include "../3rdparty/Console/console.h"
+#include "classes.h"
 #include "engine.h"
 #include "utils.h"
 
@@ -9,45 +10,48 @@ emEngine::~emEngine()
 {
     //dtor
 }
-bool emEngine::Release()
+bool emEngine::release()
 {
     delete this;
-}
-emEngine::emEngine()
-{
-    pluginInfo=new CEnginePlugin;
-    pluginInfo=getPluginInfo();
+    return true;
 }
 
-bool emEngine::Load(CEngineConfig *ecfg){
+emEngine::emEngine(): _solution(),_pluginInfo(),_engineConfig(){
+    //  pluginInfo.description="\0";
+    //  pluginInfo.name=&ENGINENAME;
+    _pluginInfo.version_maj = 1;
+    _pluginInfo.version_min = 0;
+    _engineConfig.slowprinting = true;
+    _engineConfig.optimizebranching = false;
+}
+
+bool emEngine::load(CEngineConfig cfg){
   try
     {
-        solution=CemSolution();
-        econfig=( CEngineConfig *) malloc(sizeof(CEngineConfig));
-        *econfig=*ecfg;
-        solution.LoadFromFile(econfig->configfile);
-        seances_count=solution.SeanceTableCount();
-        salles_count=solution.SalleTableCount();
-        classes_count=solution.ClasseTableCount();
-        prof_count=solution.ProfTableCount();
-        mat_count=solution.MatTableCount();
+        _engineConfig = cfg;
+        solution().LoadFromFile(_engineConfig.configfile);
+        shifts_count= _solution.ShiftTableCount();
+        crooms_count= _solution.CroomTableCount();
+        classes_count= _solution.ClasseTableCount();
+        prof_count= _solution.ProfTableCount();
+        mat_count= _solution.MatTableCount();
 
         FMatMapArray=new CMapDayTable[classes_count];
 
         FMatProcessMap=new CProcessLevelRecord[mat_count];
 
         FMapClasseBitDT_A=new CBitDayTable[classes_count];
-        FMapSalleBitDT_A=new CBitDayTable[salles_count];
+        FMapCroomBitDT_A=new CBitDayTable[crooms_count];
         FMapProfBitDT_A=new CBitDayTable[prof_count];
 
         FMapClasseBitDT_B=new CBitDayTable[classes_count];
-        FMapSalleBitDT_B=new CBitDayTable[salles_count];
+        FMapCroomBitDT_B=new CBitDayTable[crooms_count];
         FMapProfBitDT_B=new CBitDayTable[prof_count];
-        FTypeSalleMapArray=new  CDayTable[MAX_SALLETYPE_COUNT];
+        FTypeCroomMapArray=new  CDayTable[MAX_CROOMTYPE_COUNT];
 
         #if  OPTIMIZE_BRANCHING ==1
-        FmhtDuree_b=new CMapHourTable[9];
-        FmhtDuree_e=new CMapHourTable[9];
+        FmhtLength_b=new CMapHourTable[9];
+        FmhtLength_e=new CMapHourTable[9];
 
         FmdtMat_b=new CMapDayHoursTable[mat_count];
         FmdtMat_e=new CMapDayHoursTable[mat_count];
@@ -55,39 +59,33 @@ bool emEngine::Load(CEngineConfig *ecfg){
     }
     catch(...)
     {
-        delete &solution;
-        Console::WriteEx("Error loading engine!",ColorRed);
+       
+        Console::WriteEx("\nError loading engine!",ColorRed);
         return false;
     }
     return true;
 }
-bool emEngine::Save(const char* fn){
 
-   return solution.SaveToFile(fn);
+bool emEngine::save(const char* fn){
+
+   return solution().SaveToFile(fn);
 
 }
-CEnginePlugin*  emEngine::getPluginInfo(){
 
-  //  pluginInfo->description="\0";
-  //  pluginInfo->name=&ENGINENAME;
-    pluginInfo->version_maj=1;
-    pluginInfo->version_min=0;
-    return pluginInfo;
-}
-int emEngine::SeancesCount(){
-    return seances_count;
+int emEngine::shiftsCount(){
+    return shifts_count;
 
 }
 bool  emEngine::verifySolution(bool b){
-   return solution.verifyProcessedSeances(b);
+   return solution().verifyProcessedShifts(b);
 }
 bool  emEngine::getOptimizeValue(int *hp,int*hc,int*cp,int*cc){
-   return solution.getOptimizeValue(hp,hc,cp,cc);
+   return solution().getOptimizeValue(hp,hc,cp,cc);
 }
 
 void emEngine::execute(bool _first ,bool _new)
 {
-    max_processed_seances=0;
+    max_processed_shifts=0;
     max_prof_hc=0;
     max_classe_hc=0;
     time(&ptime);
@@ -99,35 +97,35 @@ void emEngine::execute(bool _first ,bool _new)
         printf("Optimize branching .....[disabled]\n");
     #endif
 
-    solution.SetTablesCount();
-    highlevel_process_count=(econfig->hltx*seances_count / 100);
-    lowlevel_process_count=(econfig->lltx*seances_count / 100);
+        solution().SetTablesCount();
+    highlevel_process_count=((int)_engineConfig.hltx*shifts_count / 100);
+    lowlevel_process_count=((int) _engineConfig.lltx*shifts_count / 100);
     printf("\nhltx=%2.2f%% %d/%d\nlltx=%2.2f%% %d/%d\nmltx=%2.2f%%\n\n",
-           econfig->hltx,highlevel_process_count,seances_count,
-           econfig->lltx,lowlevel_process_count,seances_count,
-           econfig->mltx
+        _engineConfig.hltx,highlevel_process_count,shifts_count,
+        _engineConfig.lltx,lowlevel_process_count,shifts_count,
+        _engineConfig.mltx
 
           );
 
     for(tmpi=0; tmpi<mat_count; tmpi++)
     {
         FMatProcessMap[tmpi].iprocess=0;
-        FMatProcessMap[tmpi].tx=econfig->mltx;
-        FMatProcessMap[tmpi].seanceCount=solution.getSeancesCount(tmpi,emMat);
-        FMatProcessMap[tmpi].level=(int)(FMatProcessMap[tmpi].tx*FMatProcessMap[tmpi].seanceCount / 100);
+        FMatProcessMap[tmpi].tx= _engineConfig.mltx;
+        FMatProcessMap[tmpi].shiftCount= solution().getShiftsCount(tmpi,emMat);
+        FMatProcessMap[tmpi].level=(int)(FMatProcessMap[tmpi].tx*FMatProcessMap[tmpi].shiftCount / 100);
 #if ENGINE_DEBUGMODE_LEVEL >=0
         printf("mindex=%d   count=%d    level=%d\n",
                tmpi,
-               FMatProcessMap[tmpi].seanceCount,
+               FMatProcessMap[tmpi].shiftCount,
                FMatProcessMap[tmpi].level);
 #endif
     }
 
 
 
-    Initialize(_first || _new);
+    initialize(_first || _new);
     cursor_y=Console::GetCursorY();
-    StartSearching();
+    startSearching();
 // Optimize;
 }
 /** @brief (one liner)
@@ -138,27 +136,27 @@ void emEngine::doFill()
 {
     int j,k,l;
 
-    l=seances_count;
+    l=shifts_count;
     FProcessArray=new int[l];
 
     k=0;
     for (j=0 ; j<l; j++)
     {
 
-        /*  if  ((goNotProcessLockedSeances in solution.GlobalOptions) &&
-                    (doLocked in solution.seanceTable[j].Drawopt))
-                 || (solution.ClasseTable[solution.seanceTable[j].CIndex].NotIncluded &&(goNotIncludedClasse in solution.GlobalOptions))
-                 || (solution.ProfTable[solution.seanceTable[j].PIndex].NotIncluded &&(goNotIncludedProf in solution.GlobalOptions))
-                 || (solution.MatTable[solution.seanceTable[j].MIndex].NotIncluded &&(goNotIncludedMat in solution.GlobalOptions))
+        /*  if  ((goNotProcessLockedShifts in solution().GlobalOptions) &&
+                    (doLocked in solution().shiftTable[j].Drawopt))
+                 || (solution().ClasseTable[solution().shiftTable[j].CIndex].NotIncluded &&(goNotIncludedClasse in solution().GlobalOptions))
+                 || (solution().ProfTable[solution().shiftTable[j].PIndex].NotIncluded &&(goNotIncludedProf in solution().GlobalOptions))
+                 || (solution().MatTable[solution().shiftTable[j].MIndex].NotIncluded &&(goNotIncludedMat in solution().GlobalOptions))
 
                continue;
 
         */
         FProcessArray[k]=j ;
-        //fix rang
-        solution.SeanceTable()[j].rang=k;
+        //fix rank
+        solution().ShiftTable()[j].rank=k;
         //reset delat
-        solution.SeanceTable()[j].delta=8-solution.SeanceTable()[j].duree;//(1+solution.SeanceTable()[j].byquinz);
+        solution().ShiftTable()[j].delta=8-solution().ShiftTable()[j].length;//(1+solution().ShiftTable()[j].every2weeks);
         k++;
     }
 
@@ -197,15 +195,15 @@ bool emEngine::moveIndex(int i1,int i2)
 {
     int  i,j, tmp,tmpI2;
 
-    if ((i2>=i1)||(i1<1)||(i2<-1)||(i1>=seances_count)||(i2>=seances_count))
+    if ((i2>=i1)||(i1<1)||(i2<-1)||(i1>=shifts_count)||(i2>=shifts_count))
         return false;
     tmp=FProcessArray[i1];//save i1
-    (solution.SeanceTable()[tmp].delta)++;
+    (solution().ShiftTable()[tmp].delta)++;
     tmpI2=i2;
 
     if (tmpI2==-1)
         for (j=0 ; j< i1; j++)
-            if (solution.SeanceTable()[tmp].delta>solution.SeanceTable()[FProcessArray[j]].delta)
+            if (solution().ShiftTable()[tmp].delta>solution().ShiftTable()[FProcessArray[j]].delta)
             {
                 tmpI2=j;
                 break;
@@ -240,7 +238,7 @@ int emEngine::doPartition(const int p,const int r)
 
     for(tmpj=p; tmpj<r; tmpj++)
     {
-        if(solution.SeanceTable()[FProcessArray[tmpj]].delta<=solution.SeanceTable()[x].delta)
+        if(solution().ShiftTable()[FProcessArray[tmpj]].delta<=solution().ShiftTable()[x].delta)
         {
             tmpi++;
             swapValues(tmpi,tmpj);
@@ -272,13 +270,13 @@ void emEngine::doSort(const bool ascendant)
     int i;
     for (i=0; i<FProcessArrayLength; i++)
     {
-        printf("%d   [%d]     rang=%d     duree=%d   byquinz=%d  delta=%d\n",
+        printf("%d   [%d]     rank=%d     length=%d   every2weeks=%d  delta=%d\n",
                i,
                FProcessArray[i],
-               solution.SeanceTable()[FProcessArray[i]].rang,
-               solution.SeanceTable()[FProcessArray[i]].duree,
-               solution.SeanceTable()[FProcessArray[i]].byquinz,
-               solution.SeanceTable()[FProcessArray[i]].delta
+               solution().ShiftTable()[FProcessArray[i]].rank,
+               solution().ShiftTable()[FProcessArray[i]].length,
+               solution().ShiftTable()[FProcessArray[i]].every2weeks,
+               solution().ShiftTable()[FProcessArray[i]].delta
               );
     }
 #else
@@ -290,8 +288,8 @@ void emEngine::doSort(const bool ascendant)
 
 void emEngine::doRandomize()
 {
-    int j;
-    for (j=0 ; j<FProcessArrayLength; j++)
+  
+    for (int j=0 ; j<FProcessArrayLength; j++)
     {
         srand(time(0));
         swapValues(j,rand() % FProcessArrayLength);
@@ -306,37 +304,37 @@ void emEngine::doFillConstraintMap(){
  for (d=0 ; d<6; d++)
   for (h=0 ; h<=15; h++)
    {
-     FmhtDuree_b[0][d][h]=0;
-     FmhtDuree_b[0][d][h]=0;
-     FmhtDuree_b[1][d][h]=0;
-     FmhtDuree_b[1][d][h]=0;
+     FmhtLength_b[0][d][h]=0;
+     FmhtLength_b[0][d][h]=0;
+     FmhtLength_b[1][d][h]=0;
+     FmhtLength_b[1][d][h]=0;
 
     for (j=2 ; j<9; j++){
-    FmhtDuree_b[j][d][h]=1;
-    FmhtDuree_e[j][d][h]=1;
+    FmhtLength_b[j][d][h]=1;
+    FmhtLength_e[j][d][h]=1;
 
     if((j!=3)&&( h % 2!=0))
-        FmhtDuree_b[j][d][h]=0;
+        FmhtLength_b[j][d][h]=0;
 
     if((d>3)&&(h>=8)){
-        FmhtDuree_b[j][d][h]=0;
-        FmhtDuree_e[j][d][h]=0;
+        FmhtLength_b[j][d][h]=0;
+        FmhtLength_e[j][d][h]=0;
     }
 
    }
 
 
  /*
-        FmhtDuree_b[2][d][h]=((h % 2==0)&&( (h<=6)||((h>=8)&&(h<=13)) ));
-        FmhtDuree_e[2][d][h]=((h % 2==0)&&( ((h>=2)&&(h<=8))||((h>=10)&&(h<=15)) ));
+        FmhtLength_b[2][d][h]=((h % 2==0)&&( (h<=6)||((h>=8)&&(h<=13)) ));
+        FmhtLength_e[2][d][h]=((h % 2==0)&&( ((h>=2)&&(h<=8))||((h>=10)&&(h<=15)) ));
  */
-        FmhtDuree_b[3][d][h]=(h % 4==0);
-        FmhtDuree_b[4][d][h]=(h % 4==0);
-        FmhtDuree_b[6][d][h]=(h==0)||(h==2)||(h==8)||(h==10);
-        FmhtDuree_b[8][d][h]=(h % 8==0);
+        FmhtLength_b[3][d][h]=(h % 4==0);
+        FmhtLength_b[4][d][h]=(h % 4==0);
+        FmhtLength_b[6][d][h]=(h==0)||(h==2)||(h==8)||(h==10);
+        FmhtLength_b[8][d][h]=(h % 8==0);
 
-        FmhtDuree_b[5][d][h]=0;
-        FmhtDuree_e[5][d][h]=0;
+        FmhtLength_b[5][d][h]=0;
+        FmhtLength_e[5][d][h]=0;
 
    }
 
@@ -373,19 +371,19 @@ void emEngine::doFillConstraintMap(){
     }
 
     if(h>12){
-        FmdtMat_e[0][d][h]=seances_count;
-        FmdtMat_e[13][d][h]=seances_count; //ph <14h 100%
+        FmdtMat_e[0][d][h]=shifts_count;
+        FmdtMat_e[13][d][h]=shifts_count; //ph <14h 100%
         }
 
     if(h>14){
-        FmdtMat_e[6][d][h]=MAX_SEANCES_COUNT;//sport <17h
+        FmdtMat_e[6][d][h]=MAX_SHIFTS_COUNT;//sport <17h
     }
 
    }
 #endif
 }
 
-void emEngine::Initialize(const bool AReset)
+void emEngine::initialize(const bool AReset)
 {
     if (AReset)
     {
@@ -393,7 +391,7 @@ void emEngine::Initialize(const bool AReset)
 
         doFill();
         doCheck();
-        //  if (goRandomizeSeances in solution.GlobalOptions)
+        //  if (goRandomizeShifts in solution().GlobalOptions)
         doRandomize();
         doSort(true);
         //FProcessArrayChecksum=0;
@@ -422,19 +420,19 @@ void emEngine::Initialize(const bool AReset)
 
         process_tries_count=0;
         process_last_progession=process_tries_count;
-        max_processed_seances=0;
+        max_processed_shifts=0;
         max_prof_hc=0;
         max_classe_hc=0;
         time(&ptime);
         FProcessArrayChecksum=getProcessArrayChecksum();
     }
 
-    for (tmpi=0 ; tmpi<MAX_SALLETYPE_COUNT; tmpi++){
-       tmpf=solution.SalleCountByType(tmpi);
-      // printf("type salle:%d        count:%d\n",tmpi,tmpf);
+    for (tmpi=0 ; tmpi< MAX_CROOMTYPE_COUNT; tmpi++){
+       tmpf=solution().CroomCountByType(tmpi);
+      // printf("type croom:%d        count:%d\n",tmpi,tmpf);
        for (tmpj=0 ; tmpj<10; tmpj++)
           for (tmpk=0 ; tmpk<16; tmpk++)
-            FTypeSalleMapArray[tmpi][tmpj][tmpk]=tmpf ;
+            FTypeCroomMapArray[tmpi][tmpj][tmpk]=tmpf ;
     }
 
 
@@ -444,10 +442,10 @@ void emEngine::Initialize(const bool AReset)
             for (tmpk=0 ; tmpk<6; tmpk++)
                 FMatMapArray[tmpi][tmpj][tmpk]=0;
 
-    if (FProcessArrayLength<seances_count)
+    if (FProcessArrayLength<shifts_count)
     {
         for (tmpi=0 ; tmpi<FProcessArrayLength; tmpi++)
-            solution.viderSeance2(FProcessArray[tmpi],true);
+            solution().clearShift(FProcessArray[tmpi],true);
     }
     else
     {
@@ -468,23 +466,23 @@ void emEngine::Initialize(const bool AReset)
 
             }
 
-            for (tmpi=0; tmpi<salles_count; tmpi++)
+            for (tmpi=0; tmpi<crooms_count; tmpi++)
             {
-                FMapSalleBitDT_A[tmpi][tmpk]=0;
-                FMapSalleBitDT_B[tmpi][tmpk]=0;
+                FMapCroomBitDT_A[tmpi][tmpk]=0;
+                FMapCroomBitDT_B[tmpi][tmpk]=0;
             }
 
         }
 
 
-        for (tmpi=0; tmpi<seances_count; tmpi++)
+        for (tmpi=0; tmpi<shifts_count; tmpi++)
         {
 
-            solution.SeanceTable()[tmpi].day=-1;
-            solution.SeanceTable()[tmpi].hour=-1;
-            solution.SeanceTable()[tmpi].doquinzwith=(int)foNoWhere;
-            solution.SeanceTable()[tmpi].dogroupwith=-1;
-            solution.SeanceTable()[tmpi].groupedwith=-1;
+            solution().ShiftTable()[tmpi].day=-1;
+            solution().ShiftTable()[tmpi].hour=-1;
+            solution().ShiftTable()[tmpi].doAlternatewith=(int)foNoWhere;
+            solution().ShiftTable()[tmpi].dogroupwith=-1;
+            solution().ShiftTable()[tmpi].groupedwith=-1;
         }
 
     }
@@ -509,7 +507,7 @@ void emEngine::Initialize(const bool AReset)
   * (documentation goes here)
   */
 
-bool emEngine::StartSearching()
+bool emEngine::startSearching()
 {
 
     SYSTEMTIME st0,st1;
@@ -518,7 +516,7 @@ bool emEngine::StartSearching()
     process_running=true;//! result;
     process_tries_count=0;
     process_last_progession=0;
-    // NextSeance
+    // NextShift
     iprocess=0;;
     PrHour=0;
     initStartDay();
@@ -526,15 +524,15 @@ bool emEngine::StartSearching()
     {
 
 #if ENGINE_DEBUGMODE_LEVEL >=1
-        printf("[%d] Seance[%d] entering process()\n",iprocess,FProcessArray[iprocess]);
+        printf("[%d] Shift[%d] entering process()\n",iprocess,FProcessArray[iprocess]);
 #else
 
 #endif
 
 
-        if (Process()==true)
+        if (process()==true)
         {
-            // NextSeance
+            // NextShift
             iprocess++;
             PrHour=0;
         }
@@ -545,11 +543,11 @@ bool emEngine::StartSearching()
             {
 
                 PrHour=0;
-                moveIndex(iprocess,-1/*max(0,2*i-FSeanceTableCount)*/);
-                Initialize(false);
-                last_max_processed_seances=max_processed_seances;
-                max_processed_seances=(iprocess>=max_processed_seances)?iprocess:max_processed_seances;
-                 if(max_processed_seances>last_max_processed_seances)
+                moveIndex(iprocess,-1/*max(0,2*i-FShiftTableCount)*/);
+                initialize(false);
+                last_max_processed_shifts=max_processed_shifts;
+                max_processed_shifts=(iprocess>=max_processed_shifts)?iprocess:max_processed_shifts;
+                 if(max_processed_shifts>last_max_processed_shifts)
                     process_last_progession= process_tries_count;
                 iprocess=0;
 
@@ -557,7 +555,7 @@ bool emEngine::StartSearching()
         #if SLOW_PRINTING ==1
               if (process_tries_count % 101==0){
         #endif
-                //solution.getOptimizeValue(&valp,&valc,&osp,&osc);
+                //solution().getOptimizeValue(&valp,&valc,&osp,&osc);
                 diff_time=difftime(time(0),ptime);
                 max_prof_hc=(max_prof_hc>prof_hc)?max_prof_hc:prof_hc;
                 max_classe_hc=(max_classe_hc>classe_hc)?max_classe_hc:classe_hc;
@@ -566,7 +564,7 @@ bool emEngine::StartSearching()
 
 
                 //progression_tx=process_percent;
-                process_percent=(double)max_processed_seances/(double)seances_count*100;
+                process_percent=(double)max_processed_shifts/(double)shifts_count*100;
 
                /* progression_tx=(process_percent-progression_tx)/diff_time*100;
                 if(progression_tx>0.0001)
@@ -580,13 +578,13 @@ bool emEngine::StartSearching()
 
                 Console::SetCursorPosition(3,cursor_y);
                 // printf("\n",FProcessArrayChecksum);
-                printf("%06d  %c %02.3f%% %04d/%04d %04.0f%/s p:%d %04d crc%012ld",
+                printf("%06d  %c %02.3f%% %04d/%04d %04.0f/s p:%d %04d crc%012ld",
                        process_tries_count+1,
                        SPEED_SYM[process_tries_count % 4],
 
                        process_percent,
-                       max_processed_seances,
-                       seances_count,
+                       max_processed_shifts,
+                       shifts_count,
                        process_speed,
                        max_prof_hc,
                        process_tries_count-process_last_progession,
@@ -607,10 +605,10 @@ bool emEngine::StartSearching()
 
 
     }  //while
-    all_processed_seances=iprocess;
-    if(all_processed_seances==FProcessArrayLength)
+    all_processed_shifts=iprocess;
+    if(all_processed_shifts==FProcessArrayLength)
     {
-        solution.rebuildSolution();
+        solution().rebuildSolution();
         return true;
     }
     return false;
@@ -620,61 +618,61 @@ bool emEngine::StartSearching()
   *
   * (documentation goes here)
   */
-bool emEngine::Process()
+bool emEngine::process()
 {
     bresult=false;
     //isForbiddenday=false;
     tmpgw=-1;
     tmpfo=foMixte;
     cursindex=FProcessArray[iprocess];
-    curSeance=&solution.SeanceTable()[cursindex];
-    curduree=curSeance->duree;
+    curShift=&solution().ShiftTable()[cursindex];
+    curlength=curShift->length;
 
-    curmindex=curSeance->mindex;
-    curcindex=curSeance->cindex;
-    curpindex=curSeance->pindex;
-    curfday=solution.ProfTable()[curpindex].fday;
+    curmindex=curShift->mindex;
+    curcindex=curShift->cindex;
+    curpindex=curShift->pindex;
+    curfday=solution().ProfTable()[curpindex].fday;
 
     if (curpindex==-1)
     {
-        /* ShowMessage(format('FATAL ERROR: No "PROF" assigned for "Seance":%d "Mat":%d "Classe":%d',
+        /* ShowMessage(format('FATAL ERROR: No "PROF" assigned for "Shift":%d "Mat":%d "Classe":%d',
         [cursindex,curmindex,curCindex])); */
-        Console::Write("FATAL ERROR: No 'PROF' assigned for 'Seance' n:");
+        Console::Write("FATAL ERROR: No 'PROF' assigned for 'Shift' n:");
         Console::Write(cursindex);
         return false;
     }
 
 
     PrDay=PrStartDay-1;
-    NextDay();
-    PrSalle=0;
+    nextDay();
+    PrCroom=0;
 
-    tmpbitset=(1 << curduree)-1;
-    tmpbitset=tmpbitset << (32-curduree-PrHour);
+    tmpbitset=(1 << curlength)-1;
+    tmpbitset=tmpbitset << (32-curlength-PrHour);
 
-    while (PrSalle<salles_count)
+    while (PrCroom<crooms_count)
     {
         if (
             (!isForbiddenday)
-            &&(curSeance->type_salle==solution.SalleTable()[PrSalle].stype)
-            &&(CheckIsEmpty()!=-1)
+            &&(curShift->type_croom==solution().CroomTable()[PrCroom].stype)
+            &&(checkIsEmpty()!=-1)
         )
         {
-            //TODO:check next && previous Seance
-            bresult=RempliSalle();
+            //TODO:check next && previous Shift
+            bresult=fillCroom();
             if (bresult)
                 break;
             else
-                RempliSalle(false) ;
+                fillCroom(false) ;
 
 
         }
 
-        PrSalle++;
-        if (isForbiddenday ||(PrSalle>=salles_count))
+        PrCroom++;
+        if (isForbiddenday ||(PrCroom>=crooms_count))
         {
-            PrSalle=0;
-            NextDay();
+            PrCroom=0;
+            nextDay();
             if (PrDay==PrStartDay)
                 break;
 
@@ -699,7 +697,7 @@ bool emEngine::Process()
   *
   * (documentation goes here)
   */
-bool emEngine::RempliSalle(bool abool)
+bool emEngine::fillCroom(bool abool)
 {
     bresult=false;
     if (abool)
@@ -707,60 +705,60 @@ bool emEngine::RempliSalle(bool abool)
 
           if (tmpgw!=-1)
           {
-            solution.setLink(tmpgw,cursindex,ltGroup);
+            solution().setLink(tmpgw,cursindex,ltGroup);
           }
-          curSeance->saindex=PrSalle;
-          curSeance->hour=PrHour;
-          curSeance->day=PrDay;
-          curSeance->doquinzwith=(int)(tmpfo);
+          curShift->saindex=PrCroom;
+          curShift->hour=PrHour;
+          curShift->day=PrDay;
+          curShift->doAlternatewith=(int)(tmpfo);
 
-       // solution.RempliSalle(cursindex,PrSalle,PrDay,PrHour,tmpfo,tmpgw,true);
+       // solution().FillCroom(cursindex,PrCroom,PrDay,PrHour,tmpfo,tmpgw,true);
 
-        if ((tmpfo==foMixte)||(tmpfo==foSemaineA))
+        if ((tmpfo==foMixte)||(tmpfo==foWeekA))
         {
             if (tmpgw==-1)
                 FMapClasseBitDT_A[curcindex][PrDay]|= tmpbitset;
-            FMapSalleBitDT_A[PrSalle][PrDay] |= tmpbitset;
+            FMapCroomBitDT_A[PrCroom][PrDay] |= tmpbitset;
             FMapProfBitDT_A[curpindex][PrDay]|= tmpbitset;
 
         }
-        if ((tmpfo==foMixte)||(tmpfo==foSemaineB))
+        if ((tmpfo==foMixte)||(tmpfo==foWeekB))
         {
             if (tmpgw==-1)
                 FMapClasseBitDT_B[curcindex][PrDay]|= tmpbitset;
-            FMapSalleBitDT_B[PrSalle][PrDay] |= tmpbitset;
+            FMapCroomBitDT_B[PrCroom][PrDay] |= tmpbitset;
             FMapProfBitDT_B[curpindex][PrDay]|= tmpbitset;
         }
 
         //update FMatMapArray
         FMatMapArray[curcindex][curmindex][PrDay]=1;
         /* if(tmpgw!=-1)
-             FMatMapArray[curcindex][solution.SeanceTable()[tmpgw].mindex][PrDay]=1;*/
+             FMatMapArray[curcindex][solution().ShiftTable()[tmpgw].mindex][PrDay]=1;*/
         FMatProcessMap[curmindex].iprocess++;
-        FTypeSalleMapArray[curSeance->type_salle][PrDay][PrHour]--;
+        FTypeCroomMapArray[curShift->type_croom][PrDay][PrHour]--;
        /* if (after_hc==true)
             prof_hc++;
-        if((prof_hc>0)&&(PrEndhour!=8)&&(PrEndhour!=16)&&(solution.ProfTable()[curpindex].weeka[PrDay][PrEndhour]!=-1))
+        if((prof_hc>0)&&(PrEndhour!=8)&&(PrEndhour!=16)&&(solution().ProfTable()[curpindex].weeka[PrDay][PrEndhour]!=-1))
             prof_hc--;
 */
         //dec delta
-        //curSeance->delta--;
+        //curShift->delta--;
         bresult=true;
     }
     else
     {
-        /* curSeance->saindex=-1;
-         curSeance->hour=-1;
-         curSeance->day=-1;
-         curSeance->doquinzwith=(int)(foNoWhere);
-          if (curSeance->groupedwith!=-1)
+        /* curShift->saindex=-1;
+         curShift->hour=-1;
+         curShift->day=-1;
+         curShift->doAlternatewith=(int)(foNoWhere);
+          if (curShift->groupedwith!=-1)
          {
-            solution.setLink(cursindex,curSeance->groupedwith,ltClear);
+            solution().setLink(cursindex,curShift->groupedwith,ltClear);
 
          }
 
          */
-        //solution.RempliSalle(cursindex,PrSalle,PrDay,PrHour,tmpfo,tmpgw,false);
+        //solution().FillCroom(cursindex,PrCroom,PrDay,PrHour,tmpfo,tmpgw,false);
 
         //update FMatMapArray
         // FMatMapArray[curcindex][curmindex][PrDay]=0;
@@ -770,9 +768,9 @@ bool emEngine::RempliSalle(bool abool)
 
 
     if (!bresult)
-        Console::WriteEx("RepmliSalle failed!",ColorRed);
+        Console::WriteEx("RepmliCroom failed!",ColorRed);
 #if ENGINE_DEBUGMODE_LEVEL >=2
-    else  printf("\t->[%d] RepmliSalle n:%d ....[ok]\n",cursindex,PrSalle);
+    else  printf("\t->[%d] RepmliCroom n:%d ....[ok]\n",cursindex,PrCroom);
 #else
 
 #endif
@@ -786,35 +784,35 @@ bool emEngine::RempliSalle(bool abool)
   *
   * (documentation goes here)
   */
-int emEngine::CheckIsEmpty()
+int emEngine::checkIsEmpty()
 {
     iresultA=-1;
     iresult=-1;
     tmpgw=-1;
 
-    byquinz= curSeance->byquinz;
+    every2weeks= curShift->every2weeks;
 
-    tmpfo=foSemaineA;
+    tmpfo=foWeekA;
 
-    SalleBitDT=&FMapSalleBitDT_A[PrSalle];
+    CroomBitDT=&FMapCroomBitDT_A[PrCroom];
     ProfBitDT=&FMapProfBitDT_A[curpindex];
     ClasseBitDT=&FMapClasseBitDT_A[curcindex];
-    class_se=solution.ClasseTable()[curcindex].weeka[PrDay][PrHour] ;//class  seance
+    class_se=solution().ClasseTable()[curcindex].weeka[PrDay][PrHour] ;//class  shift
     iresult=checkEmptyDT();
-    if (((iresult==-1)&& byquinz)|| ((iresult!=-1) && !byquinz))
+    if (((iresult==-1)&& every2weeks)|| ((iresult!=-1) && !every2weeks))
     {
-        if (byquinz)
-            tmpfo=foSemaineB;
+        if (every2weeks)
+            tmpfo=foWeekB;
         else
             tmpfo=foMixte;
 
-        SalleBitDT=&FMapSalleBitDT_B[PrSalle];
+        CroomBitDT=&FMapCroomBitDT_B[PrCroom];
         ProfBitDT=&FMapProfBitDT_B[curpindex];
         ClasseBitDT=&FMapClasseBitDT_B[curcindex];
-        class_se=solution.ClasseTable()[curcindex].weekb[PrDay][PrHour] ;//class  seance
+        class_se=solution().ClasseTable()[curcindex].weekb[PrDay][PrHour] ;//class  shift
         iresultA=iresult;
         iresult=checkEmptyDT();
-        if (!byquinz && (iresult!=iresultA))
+        if (!every2weeks && (iresult!=iresultA))
             iresult=-1 ;
     }
 
@@ -838,10 +836,10 @@ int emEngine::CheckIsEmpty()
 inline int emEngine::checkEmptyDT()
 {
 
-    bcangroup=solution.CanBeByGroup(cursindex,class_se,PrDay,PrHour);
+    bcangroup=solution().CanBeByGroup(cursindex,class_se,PrDay,PrHour);
 
     if(  (( ( (*ClasseBitDT)[PrDay] & tmpbitset) !=0 ) && ! bcangroup )||
-            ( ( (*SalleBitDT)[PrDay] & tmpbitset) !=0 )  ||
+            ( ( (*CroomBitDT)[PrDay] & tmpbitset) !=0 )  ||
             ( ( (*ProfBitDT)[PrDay] & tmpbitset) !=0 )
       )
         return -1;
@@ -866,24 +864,24 @@ void emEngine::initStartDay()
   *
   * (documentation goes here)
   */
-void emEngine::NextDay()
+void emEngine::nextDay()
 {
     PrDay++;
     PrDay=PrDay % 6;
-    PrEndhour=PrHour+curduree;
-   // after_hc=(PrHour>0) && (PrHour!=8) && (solution.ProfTable()[curpindex].weeka[PrDay][PrHour-1]==-1);
+    PrEndhour=PrHour+curlength;
+   // after_hc=(PrHour>0) && (PrHour!=8) && (solution().ProfTable()[curpindex].weeka[PrDay][PrHour-1]==-1);
     isForbiddenday=
         (PrDay==curfday)
         || (FMatMapArray[curcindex][curmindex][PrDay]==1)//no 2 mat in same day
-        ||(FTypeSalleMapArray[curSeance->type_salle][PrDay][PrHour]<=0)
+        ||(FTypeCroomMapArray[curShift->type_croom][PrDay][PrHour]<=0)
         ||( PrEndhour>16) //soir
         || ((PrHour<8)&&( PrEndhour>8))//matinee
 
        #if  OPTIMIZE_BRANCHING ==0
 
-        ||( ((curduree==4)||(curduree==3)) &&(PrHour % 4!=0)    )           //pour les seances de 2h ou 1.5h
-        ||( (curduree==8) &&(PrHour % 8!=0) )                            //.... de 4h
-        ||( (PrHour % 2!=0) && (curduree!=3)    )                          // begin with half hour
+        ||( ((curlength==4)||(curlength==3)) &&(PrHour % 4!=0)    )           //pour les shifts de 2h ou 1.5h
+        ||( (curlength==8) &&(PrHour % 8!=0) )                            //.... de 4h
+        ||( (PrHour % 2!=0) && (curlength!=3)    )                          // begin with half hour
         ||( (PrDay>3)&& (PrHour>=8) )                                   //no course for ven & sam soir
          //math-physique
         ||(  (curmindex==0) && (FMatProcessMap[0].iprocess<FMatProcessMap[0].level) && (PrEndhour>8)     )
@@ -945,16 +943,16 @@ void emEngine::NextDay()
         // || ( (iprocess<highlevel_process_count) &&  (curpindex==33) && (PrDay<=2)&& (PrEndhour>8)        )
 
         #else
-        ||(FmhtDuree_b[curduree][PrDay][PrHour]==false)
-        ||(FmhtDuree_e[curduree][PrDay][PrEndhour-1]==false)
+        ||(FmhtLength_b[curlength][PrDay][PrHour]==false)
+        ||(FmhtLength_e[curlength][PrDay][PrEndhour-1]==false)
         ||(FMatProcessMap[curmindex].iprocess<FmdtMat_b[curmindex][PrDay][PrHour])
         ||(FMatProcessMap[curmindex].iprocess<FmdtMat_e[curmindex][PrDay][PrEndhour-1])
 
         #endif
          // heure de  pointe
-        || ( (iprocess<lowlevel_process_count)&& (curduree==2) &&(PrEndhour>14)  )
+        || ( (iprocess<lowlevel_process_count)&& (curlength==2) &&(PrEndhour>14)  )
         //heure creuse
-      //  || ( (iprocess<lowlevel_process_count)&& ((PrHour>0) && (solution.ClasseTable()[curcindex].weeka[PrDay][PrHour-1]==-1))  )
+      //  || ( (iprocess<lowlevel_process_count)&& ((PrHour>0) && (solution().ClasseTable()[curcindex].weeka[PrDay][PrHour-1]==-1))  )
       //  || ( (prof_hc>10)&& after_hc  )
         ;
 
