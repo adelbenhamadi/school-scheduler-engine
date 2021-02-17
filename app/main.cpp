@@ -194,7 +194,7 @@ int main(int argc, char* argv[], char* envp[])
         exit(-1);
     }
 #else
-    emEngine engine;
+    ScheduleEngine engine;
    
     try
     {
@@ -239,16 +239,14 @@ int main(int argc, char* argv[], char* envp[])
     int sol_retenu = 0;
     while (sol < 1000000) {
         Console::SetCursorPosition(4, Console::GetCursorY() + 1);
-        Console::Write("\n");
-        Console::Write("---------------------\n");
+        Console::WriteLine("");
+        Console::WriteLine("---------------------");
         printf(" Solution:%d  P:%.2f%%\n", sol, max_percent);
 
-        Console::Write("---------------------\n");
+        Console::WriteLine("---------------------");
         engine.execute(sol == 1,/*(sol_retenu=0)or(sol-sol_retenu > 5)*/sol % 3 == 1);
-        // Sleep(250);
-
-        //Console::SetCursorPosition(6,Console::GetCursorY()+1);
-        Console::Write("\n");
+    
+        Console::WriteLine("");
         //engine.rebuildSolution();
         engine.getOptimizeValue(&valp, &valc, &osp, &osc);
 
