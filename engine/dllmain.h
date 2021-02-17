@@ -18,7 +18,7 @@ HRESULT GetEngineIntf(I_Engine_Intf ** pInterface)
 {
    if(!*pInterface)
    {
-        *pInterface= new emEngine;
+        *pInterface= new ScheduleEngine;
 
         return S_OK;
    }
