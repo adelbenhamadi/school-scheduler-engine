@@ -14,38 +14,46 @@ typedef unsigned int CMapDayHoursTable[11][16];
 typedef bool CMapDayTable[MAX_MAT_COUNT][6];
 typedef bool CMapHourTable[11][16];
 
-enum CEncryptmode{ ecmM1, ecmM2 };
-enum CCompressionMode{ crmMode1, crmMode2 };
-enum COptimizeOption{
+enum EEncryptMode{ ecmM1, ecmM2 };
+enum ECompressionMode{ crmMode1, crmMode2 };
+enum EDrawMode{ doHighLighted, doLocked, doMarked, doParked };
+enum EFillMode{ foWeekA, foWeekB, foMixte, foNoWhere };
+
+enum EOptimizeOption{
 	ooNoOrphShift, ooNoBreakHour, ooNoHeurePointe,
-	ooNoSportAfterClass, ooPrefMorning, ooPrefEvening, ooNoSportAfter17h
+	ooNoSportAfterClass, ooPrefMorning, ooPrefEvening, ooNoSportAfter17h,_ooLast
 };
+typedef  EOptimizeOption EOptimizeOptions[EOptimizeOption::_ooLast];
 
-enum CShiftOptimizeOption{ soPrefMorning, soPrefEvening, soNoBusyHour };
-enum CDrawOption{ doHighLighted, doLocked, doMarked, doParked };
+enum EShiftOptimizeOption{ soPrefMorning, soPrefEvening, soNoBusyHour };
 
-enum CFillOption{ foWeekA, foWeekB, foMixte, foNoWhere };
-enum CGlobalOptimizeOption{
+enum EGlobalOptimizeOption{
 	goClassOptimize, goProfOptimize, goNotIncludedCroom,
 	goNotIncludedClasse, goNotIncludedProf, goNotIncludedMat,
 	goRandomizeShifts, goAllwaysRandomizeShifts, goNotProcessLockedShifts,
-	goSortByShiftLength
+	goSortByShiftLength,_goLast
 };
+typedef  EGlobalOptimizeOption EGlobalOptimizeOptions[EGlobalOptimizeOption::_goLast] ;
 
-enum CEmploiMode{ emCroom, emClasse, emProf, emMat };
-enum ClinkType{ ltClasse, ltCroom, ltProf, ltGroup, ltClear };
+enum EScheduleMode{ emCroom, emClasse, emProf, emMat };
+enum ELinkType{ ltClasse, ltCroom, ltProf, ltGroup, ltClear };
 
-struct CemConfig {
+struct ScheduleConfig {
 	char magic[255];
 	int magic_len, version_maj, version_min;
 	char version_lbl[64];
 	char magic_separator[2];
 	char license[255];
+	char licence_key[255];
+	int licence_date;
+	int licence_expire;
 
+	WORD encrypt_mode;
+	char encrypt_key[255];
 
 	WORD compresssion_mode;
-
 	char compression_key[255];
+
 	char lbl_1[128];
 	char lbl_2[128];
 	char lbl_3[128];
@@ -58,7 +66,7 @@ struct CemConfig {
 	char etabl_email[255];
 	char etabl_phone[16];
 	char etabl_fax[16];
-	char etab_country[64];
+	//char etab_country[64];
 	char etabl_loc_city[128];
 	char etabl_loc_road[255];
 	char etabl_loc_zip[6];
@@ -69,11 +77,11 @@ struct CMat{
 	char        symbol[64];
 	char        name[64];
 	int      fdayC1, fdayC2;
-	bool        notincluded;
+	bool        notIncluded;
 
 };
 
-//classe type
+//classe 
 struct CClasse{
 	char    name[9];
 	int      rank;
@@ -81,11 +89,11 @@ struct CClasse{
 	int      nb_eleve;
 	CDayTable	weeka, weekb;
 	WORD    options;
-	bool        notincluded;
+	bool        notIncluded;
 	int      attachedClasses[10];
 
 };
-//prof type
+//prof 
 struct CProf{
 	char       symbol[9];
 	char       name[255];
@@ -94,11 +102,11 @@ struct CProf{
 	CDayTable  weeka, weekb;
 	WORD     options;
 	int         fday;
-	bool        notincluded;
+	bool        notIncluded;
 
 };
 
-//shift type
+//shift 
 struct CShift{
 	int         rank;
 	int      	hour;// start hour
@@ -107,45 +115,39 @@ struct CShift{
 	int         delta;
 	int         mindex;
 	int         cindex;
-	int         saindex;
-	int         type_croom;
+	int         crindex;
+	int         croom_type;
 	int         pindex;
 	int         groupedwith;
 	int         dogroupwith;
 	int         doAlternatewith; //weekly alternate ..
-	WORD		options;//CShiftOptimizeOption;
+	WORD		options;//EShiftOptimizeOption;
 
 	bool     every2weeks;
 	bool     bygroup;
 	WORD     drawOption;
 };
-//croom type
+//croom 
  struct CCroom{
 	char     name[9];
 	int      rank;
 	int      stype;
 	CDayTable	weeka;
 	CDayTable weekb;
-	bool        notincluded;
+	bool        notIncluded;
 };
 
- struct CFillRecord{
+ struct CFillInfo{
 	int fShift;
 	int fCroom;
 	int fDay, fHour;
-	CFillOption ffillOption;
+	EFillMode ffillOption;
 	size_t fGroupW;
-	CEmploiMode fMode;
+	EScheduleMode fMode;
 	size_t fViewindex;
 
 };
 
-struct CProcessLevelRecord{
-	int shiftCount;
-	int level;
-	double tx;
-	int iprocess;
-};
 
 typedef struct {
 	int version_maj;
