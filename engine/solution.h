@@ -2,73 +2,77 @@
 #define _EMSOLUTION_H
 #include  <windows.h>
 #include "classes.h"
-#include "cfilestream.h"
-class CemSolution
-{
+#include <vector>
 
+
+#include "cfilestream.h"
+
+class ScheduleSolution
+{
+public:
+    ScheduleSolution();
+    virtual ~ScheduleSolution();
 
     private:
 
         bool FModified;
-        int FShiftTableCount,FCroomTableCount,
-            FClasseTableCount,FMatTableCount,FProfTableCount;
-
-        CemConfig*      emConfig;
-        CClasse*        FClasseTable;
+        struct Stats {
+            int shifts, crooms, classes, profs, mats;
+        };
+        Stats _stats;
+        ScheduleConfig      emConfig;
+        std::vector<CClasse>        _dClasses;
         CProf*          FProfTable;
         CCroom*         FCroomTable;
-        CShift*        FShiftTable;
+        std::vector<CShift>        _dShifts;
         CMat*           FMatTable;
 
-        COptimizeOption FClassOptions[10] ;
-        COptimizeOption FProfOptions[10] ;
-        CGlobalOptimizeOption FGlobalOptions[10] ;
+        EOptimizeOptions _classesOptimizeOptions ;
+        EOptimizeOptions _profOptimizeOptions ;
+        EGlobalOptimizeOptions _globalOptimizeOptions ;
         bool  checkDT(const int Sindex,CDayTable *dt);
         bool  CheckAllDT(const int Sindex);
 
         int getIdxByDaytable(CDayTable *Adt);
     protected:
         bool saveHeader(CFileStream* stream);
-        CemConfig* loadHeader(CFileStream* stream);
+        ScheduleConfig loadHeader(CFileStream* stream);
         int readData(CFileStream* stream,WORD phase);
         bool writeData(CFileStream* stream,WORD phase);
-    public:
-       CemSolution();
-       virtual ~CemSolution();
+public:
        bool         verifyProcessedShifts(bool b);
        bool         clearShift(const int se,bool abool);
-       int          getOrphinedIdxByDay(const int AIndex,const int ADay,const CEmploiMode emMode);
-       int          getOrphinedIdx(const int AIndex,const CEmploiMode emMode) ;
-       int          getCompactIdx(const int AIndex,const CEmploiMode emMode);
-       int          getShiftsCount(const int AIndex,const CEmploiMode emMode);
+       int          getOrphinedShiftByDay(const int AIndex,const int ADay,const EScheduleMode emMode);
+       int          getOrphinedShift(const int AIndex,const EScheduleMode emMode) ;
+       int          getCompactIdx(const int AIndex,const EScheduleMode emMode);
+       int          getShiftsCount(const int AIndex,const EScheduleMode emMode);
 
        bool         getOptimizeValue(int *hp,int*hc,int*cp,int*cc);
        bool         CanBeByGroup(const int Se1,const int Se2,const int Aday,const int Ahour);
-       CFillOption  getShiftFillMode(const int Se);
-       bool         setLink(const int s1,const int s2,ClinkType Alink);
+       EFillMode  getShiftFillMode(const int Se);
+       bool         setLink(const int s1,const int s2,ELinkType Alink);
        bool         parkShift(const int Sindex,bool ABool);
-       bool         FillCroom(const int AShift,const int ACroom,const int ADay,const int AHour,
-                             const CFillOption fo,const int gw,bool abool);
+       bool         fillCroom(const int AShift,const int ACroom,const int ADay,const int AHour,
+                             const EFillMode fo,const int gw,bool abool);
 
-       bool         LoadFromFile(const char* fn);
-       bool         SaveToFile(const char* fn);
+       bool         load(const char* fn);
+       bool         save(const char* fn);
        void         clearAllDT();
        void         rebuildSolution();
 
        void         shellSort();
 
-       void         SetTablesCount();
-       int          ShiftTableCount(void);
-       int          ClasseTableCount(void);
+     
        int          ProfTableCount(void);
        int          CroomTableCount(void);
        int          MatTableCount(void);
-       int          CroomCountByType(int stype);
-       CClasse*     ClasseTable();
+       int          CroomCountByType(int cr_type);
+       std::vector<CClasse>&     ClasseTable();
        CCroom*      CroomTable();
-       CShift*     ShiftTable();
+       std::vector <CShift>&  ShiftTable();
        CProf*       ProfTable();
        CMat*        MatTable();
+       ScheduleSolution::Stats&        stats() { return _stats; }
 };
 
 

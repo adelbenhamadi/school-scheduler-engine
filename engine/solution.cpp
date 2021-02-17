@@ -6,25 +6,25 @@
 
 
 
-CemSolution::CemSolution()
+ScheduleSolution::ScheduleSolution()
 {
     //printf("emSolution created!\n");
 }
 
-CemSolution::~CemSolution()
+ScheduleSolution::~ScheduleSolution()
 {
     //printf("emSolution destroyed!\n");
 }
-bool CemSolution::saveHeader(CFileStream* stream)
+bool ScheduleSolution::saveHeader(CFileStream* stream)
 {
     int sz;
-    CemConfig* pc = emConfig;
+    ScheduleConfig pc = emConfig;
 
     try
     {
-        sz=sizeof(CemConfig);
+        sz=sizeof(ScheduleConfig);
         stream->write(&sz, sizeof(sz));
-        stream->write(pc, sz);
+        stream->write(&pc, sz);
 
     }
     catch(...)
@@ -36,10 +36,10 @@ bool CemSolution::saveHeader(CFileStream* stream)
 
 }
 
-CemConfig* CemSolution::loadHeader(CFileStream* stream)
+ScheduleConfig ScheduleSolution::loadHeader(CFileStream* stream)
 {
     int sz;
-    CemConfig pc;
+    ScheduleConfig pc;
     try
     {
         stream->read(&sz, sizeof(sz));
@@ -48,13 +48,14 @@ CemConfig* CemSolution::loadHeader(CFileStream* stream)
     }
     catch(...)
     {
-        return NULL;
+        //return NULL;
+        perror("\nloadHeader error!");
     }
-    return &pc;
+    return pc;
 
 }
 
-bool CemSolution::writeData(CFileStream* stream,WORD phase)
+bool ScheduleSolution::writeData(CFileStream* stream,WORD phase)
 {
     int sz,Le,i;
     CCroom* sa;
@@ -65,14 +66,14 @@ bool CemSolution::writeData(CFileStream* stream,WORD phase)
     char s[2]="" ;
     //read string to compare to magic
     if(phase==0)
-        stream->writeString(emConfig->magic);
+        stream->writeString(emConfig.magic);
 
 
     switch (phase)
     {
     case 0:
         //write count
-        Le=FCroomTableCount;
+        Le=_stats.crooms;
         stream->write(&Le, sizeof(Le));
         //write struct
         sz=sizeof(CCroom);
@@ -90,17 +91,17 @@ bool CemSolution::writeData(CFileStream* stream,WORD phase)
         break;
     case 1:
         //write count
-        Le=FClasseTableCount;
+        Le=_dClasses.size();
         stream->write(&Le, sizeof(Le));
 
         //write struct
         sz=sizeof(CClasse);
         stream->write(&sz ,sizeof(sz));
+
         for(i=0; i<Le; i++)
         {
 
-            stream->write(&FClasseTable[i],sz);
-
+            stream->write(&(_dClasses)[i],sz);         
             //write magic separateur
             stream->write(s,2);
         }
@@ -108,7 +109,7 @@ bool CemSolution::writeData(CFileStream* stream,WORD phase)
         break;
     case 2:
         //write count
-        Le=FShiftTableCount;
+        Le=_dShifts.size();
         stream->write(&Le, sizeof(Le));
 
         //write struct
@@ -118,7 +119,7 @@ bool CemSolution::writeData(CFileStream* stream,WORD phase)
         for(i=0; i<Le; i++)
         {
 
-            stream->write(&FShiftTable[i],sz);
+            stream->write(&_dShifts[i],sz);
             //write magic separateur
             stream->write(s,2);
         }
@@ -126,7 +127,7 @@ bool CemSolution::writeData(CFileStream* stream,WORD phase)
         break;
     case 3:
         //write count
-        Le=FProfTableCount;
+        Le=_stats.profs;
         stream->write(&Le, sizeof(Le));
 
         //write struct
@@ -144,7 +145,7 @@ bool CemSolution::writeData(CFileStream* stream,WORD phase)
         break;
     case 4:
         //write count
-        Le=FMatTableCount;
+        Le=_stats.mats;
         stream->write(&Le, sizeof(Le));
         //write struct
         sz=sizeof(CMat);
@@ -164,7 +165,7 @@ bool CemSolution::writeData(CFileStream* stream,WORD phase)
     return true;
 }
 
-int CemSolution::readData(CFileStream* stream,WORD phase)
+int ScheduleSolution::readData(CFileStream* stream,WORD phase)
 {
     int sz,Le,i;
     CCroom* sa;
@@ -185,51 +186,46 @@ int CemSolution::readData(CFileStream* stream,WORD phase)
         FCroomTable=new CCroom[Le];
         //read struct
         stream->read(&sz ,sizeof(sz));
-        sa=(CCroom*)malloc(sz);
+        CCroom sa;
         for(i=0; i<Le; i++)
         {
-            stream->read(sa,sz);
-            FCroomTable[i]=(CCroom)(*sa);
+            stream->read(&sa,sz);
+            FCroomTable[i]=sa;
 
             //read magic separateur
             stream->read(s,2);
         }
-        delete sa;
 
         break;
     case 1:
-        FClasseTable=new CClasse[Le];
+        //_dClasses.reserve(Le);
         //read struct
         stream->read(&sz ,sizeof(sz));
-        cl=(CClasse*)malloc(sz);
+        CClasse cl;
         for(i=0; i<Le; i++)
         {
-            stream->read(cl,sz);
-            FClasseTable[i]=(CClasse)(*cl);
-            //printf("Classe n� %d [%s]\n",FClasseTable[i].rank,FClasseTable[i].name);
+            stream->read(&cl,sz);
+            _dClasses.emplace_back(cl);
 
             //read magic separateur
             stream->read(s,2);
-        }
-        delete cl;
+        }     
 
         break;
 
     case 2:
-        FShiftTable=new CShift[Le];
+        //_dShifts.reserve(Le);
         //read struct
         stream->read(&sz ,sizeof(sz));
-        se=(CShift*)malloc(sz);
+        CShift se;
         for(i=0; i<Le; i++)
         {
-            stream->read(se,sz);
-            FShiftTable[i]=(CShift)(*se);
-
+            stream->read(&se,sz);
+            _dShifts.emplace_back(se);
 
             //read magic separateur
             stream->read(s,2);
         }
-        delete se;
 
         break;
 
@@ -237,17 +233,15 @@ int CemSolution::readData(CFileStream* stream,WORD phase)
         FProfTable=new CProf[Le];
         //read struct
         stream->read(&sz ,sizeof(sz));
-        pr=(CProf*)malloc(sz);
+        CProf pr;
         for(i=0; i<Le; i++)
         {
-            stream->read(pr,sz);
-            FProfTable[i]=(CProf)(*pr);
-            //printf("prof n� %d [%s]\n",FProfTable[i].rank,FProfTable[i].name);
+            stream->read(&pr,sz);
+            FProfTable[i]=pr;       
 
             //read magic separateur
             stream->read(s,2);
         }
-        delete pr;
 
         break;
 
@@ -255,17 +249,15 @@ int CemSolution::readData(CFileStream* stream,WORD phase)
         FMatTable=new CMat[Le];
         //read struct
         stream->read(&sz ,sizeof(sz));
-        ma=(CMat*)malloc(sz);
+        CMat ma;
         for(i=0; i<Le; i++)
         {
-            stream->read(ma,sz);
-            FMatTable[i]=(CMat)(*ma);
-            //printf("croom n� %s [%s]\n",FMatTable[i].name,FMatTable[i].symbol);
+            stream->read(&ma,sz);
+            FMatTable[i]=ma;
 
             //read magic separateur
             stream->read(s,2);
         }
-        delete ma;
 
         break;
     }
@@ -274,16 +266,16 @@ int CemSolution::readData(CFileStream* stream,WORD phase)
 
 }
 
-bool   CemSolution::LoadFromFile(const char* filename)
+bool   ScheduleSolution::load(const char* filename)
 {
     CFileStream fs(filename,cmOpen);
-    emConfig=loadHeader(&fs);
-    if(emConfig==NULL)
+    emConfig = loadHeader(&fs);
+    if(emConfig.magic_len != 255)
     {
         printf("error reading header!");
         return false;
     }
-
+    
 #if DEBUG_MODE
      printf("magic:[%s]\n",emConfig->magic);
      printf("version_lbl:[%s]\n",emConfig->version_lbl);
@@ -294,23 +286,24 @@ bool   CemSolution::LoadFromFile(const char* filename)
      printf("lbl_annee:[%s]\n",emConfig->lbl_annee);
 #endif
 
-    FCroomTableCount=readData(&fs,0);
-    FClasseTableCount=readData(&fs,1);
-    FShiftTableCount=readData(&fs,2);
-    FProfTableCount=readData(&fs,3);
-    FMatTableCount=readData(&fs,4);
+     _stats.crooms = readData(&fs, 0);
+     _stats.classes = readData(&fs, 1);
+     _stats.shifts = readData(&fs, 2);
+     _stats.profs = readData(&fs, 3);
+     _stats.mats = readData(&fs, 4);
 
-    printf("Class-room count:   %d\n",FCroomTableCount);
-    printf("Class count:        %d\n",FClasseTableCount);
-    printf("Shift count:        %d\n",FShiftTableCount);
-    printf("Professor count:    %d\n",FProfTableCount);
-    printf("Mat count:          %d\n",FMatTableCount);
+    printf("STATS\n-----------------------\n");
+    printf("%d\tClassrooms\n", _stats.crooms);
+    printf("%d\tClasses\n", _stats.classes);
+    printf("%d\tShifts\n", _stats.shifts);
+    printf("%d\tProfessors\n", _stats.profs);
+    printf("%d\tMats\n", _stats.mats);
 
 
     return true;
 }
 
-bool   CemSolution::SaveToFile(const char* filename)
+bool   ScheduleSolution::save(const char* filename)
 {
 
     CFileStream fs(filename,cmCreate);
@@ -321,7 +314,7 @@ bool   CemSolution::SaveToFile(const char* filename)
         return false;
     }
 
-#if DEBUG_MODE
+#if ENGINE_DEBUGMODE_LEVEL >2
     printf("magic:[%s]\n",emConfig->magic);
      printf("version_lbl:[%s]\n",emConfig->version_lbl);
      printf("lbl_1:[%s]\n",emConfig->lbl_1);
@@ -337,11 +330,11 @@ bool   CemSolution::SaveToFile(const char* filename)
     writeData(&fs,4);
 
 #if DEBUG_MODE   
-    printf("nombre de croom:%d\n",FCroomTableCount);
-      printf("nombre de classe:%d\n",FClasseTableCount);
-      printf("nombre de shift:%d\n",FShiftTableCount);
-      printf("nombre de prof:%d\n",FProfTableCount);
-      printf("nombre de mat:%d\n",FMatTableCount);
+    printf("nombre de croom:%d\n",_stats.crooms);
+      printf("nombre de classe:%d\n",_dClasses.size());
+      printf("nombre de shift:%d\n",_dShifts.size());
+      printf("nombre de prof:%d\n",_stats.profs);
+      printf("nombre de mat:%d\n",_stats.mats);
     
 #endif
 
@@ -349,7 +342,7 @@ bool   CemSolution::SaveToFile(const char* filename)
 
 }
 
-int CemSolution::getOrphinedIdxByDay(const int AIndex,const int ADay,const CEmploiMode emMode)
+int ScheduleSolution::getOrphinedShiftByDay(const int AIndex,const int ADay,const EScheduleMode emMode)
 {
     int h, tmpA,tmpB;
     CDayTable  *wa,*wb;
@@ -357,8 +350,8 @@ int CemSolution::getOrphinedIdxByDay(const int AIndex,const int ADay,const CEmpl
     switch (emMode)
     {
     case emClasse:
-        wa=&(FClasseTable[AIndex].weeka);
-        wb=&(FClasseTable[AIndex].weekb) ;
+        wa=&(_dClasses[AIndex].weeka);
+        wb=&(_dClasses[AIndex].weekb) ;
         break;
 
     case emProf:
@@ -392,15 +385,15 @@ int CemSolution::getOrphinedIdxByDay(const int AIndex,const int ADay,const CEmpl
     return result;
 }
 
-int CemSolution::getOrphinedIdx(const int AIndex,const CEmploiMode emMode)
+int ScheduleSolution::getOrphinedShift(const int AIndex,const EScheduleMode emMode)
 {
     int d;
     int result=0;
     for(d=0; d<=5; d++)
-        result=result+getOrphinedIdxByDay(AIndex,d,emMode);
+        result=result+getOrphinedShiftByDay(AIndex,d,emMode);
     return result;
 }
-int CemSolution::getIdxByDaytable(CDayTable *Adt)
+int ScheduleSolution::getIdxByDaytable(CDayTable *Adt)
 {
     int Se=-1;
     int ADay=0;
@@ -415,7 +408,7 @@ int CemSolution::getIdxByDaytable(CDayTable *Adt)
             Se=(*Adt)[ADay][h];
             if (Se!=-1)
             {
-                du=FShiftTable[Se].length;
+                du=_dShifts[Se].length;
                 check1=(
                            ((h+du<6)||((h>=8)&&(h+du<14)))       &&
                            ((*Adt)[ADay][h+du]==-1)              &&
@@ -440,14 +433,14 @@ int CemSolution::getIdxByDaytable(CDayTable *Adt)
     return result;
 }
 
-int CemSolution::getCompactIdx(const int AIndex,const CEmploiMode emMode)
+int ScheduleSolution::getCompactIdx(const int AIndex,const EScheduleMode emMode)
 {
 
     int result=0;
     switch(emMode)
     {
     case emClasse:
-        result=getIdxByDaytable(&FClasseTable[AIndex].weeka);
+        result=getIdxByDaytable(&_dClasses[AIndex].weeka);
         break;
     case emProf:
         result=getIdxByDaytable(&FProfTable[AIndex].weeka);
@@ -456,7 +449,7 @@ int CemSolution::getCompactIdx(const int AIndex,const CEmploiMode emMode)
     }
     return result;
 }
-int CemSolution::getShiftsCount(const int AIndex,const CEmploiMode emMode)
+int ScheduleSolution::getShiftsCount(const int AIndex,const EScheduleMode emMode)
 {
 
     int result=0;
@@ -467,23 +460,23 @@ int CemSolution::getShiftsCount(const int AIndex,const CEmploiMode emMode)
     switch(emMode)
     {
     case emClasse:
-        for (i=0 ; i<FShiftTableCount; i++)
-            if(FShiftTable[i].cindex==AIndex)
+        for (i=0 ; i<_dShifts.size(); i++)
+            if(_dShifts[i].cindex==AIndex)
                 result++;
         break;
     case emProf:
-        for (i=0 ; i<FShiftTableCount; i++)
-            if(FShiftTable[i].pindex==AIndex)
+        for (i=0 ; i<_dShifts.size(); i++)
+            if(_dShifts[i].pindex==AIndex)
                 result++;
         break;
     case emMat:
-        for (i=0 ; i<FShiftTableCount; i++)
-            if(FShiftTable[i].mindex==AIndex)
+        for (i=0 ; i<_dShifts.size(); i++)
+            if(_dShifts[i].mindex==AIndex)
                 result++;
         break;
     case emCroom:
-        for (i=0 ; i<FShiftTableCount; i++)
-            if(FShiftTable[i].saindex==AIndex)
+        for (i=0 ; i<_dShifts.size(); i++)
+            if(_dShifts[i].crindex==AIndex)
                 result++;
         break;
     }
@@ -491,7 +484,7 @@ int CemSolution::getShiftsCount(const int AIndex,const CEmploiMode emMode)
 
 }
 
-bool    CemSolution::getOptimizeValue(int *hp,int*hc,int*cp,int*cc)
+bool    ScheduleSolution::getOptimizeValue(int *hp,int*hc,int*cp,int*cc)
 {
 
     int e;
@@ -500,15 +493,15 @@ bool    CemSolution::getOptimizeValue(int *hp,int*hc,int*cp,int*cc)
     *cp=0;
     *cc=0;
 
-    for(e=0 ; e< FClasseTableCount; e++)
+    for(e=0 ; e< _dClasses.size(); e++)
     {
-        *hc=*hc+getOrphinedIdx(e,emClasse);
+        *hc=*hc+getOrphinedShift(e,emClasse);
         *cc=*cc+getCompactIdx(e,emClasse);
     }
 
-    for(e=0 ; e< FProfTableCount; e++)
+    for(e=0 ; e< _stats.profs; e++)
     {
-        *hp=*hp+getOrphinedIdx(e,emProf);
+        *hp=*hp+getOrphinedShift(e,emProf);
         *cp=*cp+getCompactIdx(e,emProf);
     }
 
@@ -516,20 +509,20 @@ bool    CemSolution::getOptimizeValue(int *hp,int*hc,int*cp,int*cc)
 
 }
 
-bool CemSolution::parkShift(const int Sindex,bool ABool)
+bool ScheduleSolution::parkShift(const int Sindex,bool ABool)
 {
 
     return true;
 }
 
-bool  CemSolution::checkDT(const int Sindex,CDayTable* dt)
+bool  ScheduleSolution::checkDT(const int Sindex,CDayTable* dt)
 {
     int day,h;
     bool result,checked;
     CShift* se;
     result=false;
     checked=false;
-    se=&(FShiftTable[Sindex]);
+    se=&(_dShifts[Sindex]);
     day=se->day ;
     h=se->hour  ;
     if((day<0)||(day>10)||(h<0)||(h>15))
@@ -538,8 +531,9 @@ bool  CemSolution::checkDT(const int Sindex,CDayTable* dt)
         return false;
     }
 
-    if ((*dt)[day][h]!=Sindex)
+    if ((*dt)[day][h] != Sindex) {
         return false;
+    }
     for (day=0; day<=5; day++)
         for (h=0; h<=15; h++)
             if ((*dt)[day][h]==Sindex)
@@ -554,23 +548,23 @@ bool  CemSolution::checkDT(const int Sindex,CDayTable* dt)
     return true;
 }
 
-bool  CemSolution::CheckAllDT(const int Sindex)
+bool  ScheduleSolution::CheckAllDT(const int Sindex)
 {
     CClasse* Cl;
     CCroom *Sa;
     CProf *Pr;
     CShift *Se;
-    bool  checkA,checkB,result,result1,result2;
-    char s[254]="";
+    bool  checkA,checkB,result0,result1,result2;
+    char s[254] = "";
 
     //just for testing: emulate an erronous Shift:
-    //FShiftTable[0].day=1;
+    //_dShifts[0].day=1;
     //  FCroomTable[0].weekb[0,0]=111;
-    result=false;
+    result0=false;
 
-    Se=&(FShiftTable[Sindex]);
-    Cl=&(FClasseTable[Se->cindex]);
-    Sa=&(FCroomTable[Se->saindex]);
+    Se=&(_dShifts[Sindex]);
+    Cl=&(_dClasses[Se->cindex]);
+    Sa=&(FCroomTable[Se->crindex]);
     Pr=&(FProfTable[Se->pindex]);
 
     //check classe table
@@ -578,15 +572,15 @@ bool  CemSolution::CheckAllDT(const int Sindex)
     checkA=checkDT(Sindex,&(Cl->weeka))  ;
     checkB=checkDT(Sindex,&(Cl->weekb))  ;
 
-    result=((Se->bygroup
+    result0=((Se->bygroup
              &&
 
              (
                  ( (    (Se->groupedwith!=-1)
-                        && (FShiftTable[Se->groupedwith].groupedwith==Sindex)
-                        && (FShiftTable[Se->groupedwith].day==Se->day)
-                        && (FShiftTable[Se->groupedwith].hour==Se->hour)
-                        && (FShiftTable[Se->groupedwith].length==Se->length)
+                        && (_dShifts[Se->groupedwith].groupedwith==Sindex)
+                        && (_dShifts[Se->groupedwith].day==Se->day)
+                        && (_dShifts[Se->groupedwith].hour==Se->hour)
+                        && (_dShifts[Se->groupedwith].length==Se->length)
 
 
                    )
@@ -612,18 +606,21 @@ bool  CemSolution::CheckAllDT(const int Sindex)
 
     //initialize cursor pos
     Console::SetCursorPosition(3,Console::GetCursorY());
-    if (result)
-        sprintf_s(s,"\t->[%d]  .. [ok]",Sindex);
-    else
-        sprintf_s(s,"\n\t->[%d]  checking stage1 .. [failure]\n",Sindex);
+    if (result0) {
+        sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
+    }
+    else {
+        sprintf_s(s, "\n\t->[%d]  checking stage1 .. [failure] \n checkA:%d,checkB:%d\n", Sindex,checkA,checkB);
+      
+    }
     Console::Write(s);
 
-    result1=result;
+    result1=result0;
     //check croom table
     checkA=checkDT(Sindex,&(Sa->weeka))  ;
     checkB=checkDT(Sindex,&(Sa->weekb))  ;
 
-    result=(Se->every2weeks && checkA)
+    result0=(Se->every2weeks && checkA)
            ||
            (Se->every2weeks && checkB)
            ||
@@ -633,19 +630,21 @@ bool  CemSolution::CheckAllDT(const int Sindex)
     // sleep(10);
     //initialize cursor pos
     Console::SetCursorPosition(3,Console::GetCursorY());
-    if (result)
-        sprintf_s(s,"\t->[%d]  .. [ok]",Sindex);
-    else
-        sprintf_s(s,"\n\t->[%d]  checking stage2 .. [failure]\n",Sindex);
+    if (result0) {
+        sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
+    }
+    else {
+        sprintf_s(s, "\n\t->[%d]  checking stage2 .. [failure] \n checkA:%d,checkB:%d\n", Sindex, checkA, checkB);
+    }
     Console::Write(s);
 
-    result2=result;
+    result2=result0;
 
     //check prof table
     checkA=checkDT(Sindex,&(Pr->weeka))  ;
     checkB=checkDT(Sindex,&(Pr->weekb))  ;
 
-    result=(Se->every2weeks && checkA)
+    result0=(Se->every2weeks && checkA)
            ||
            (Se->every2weeks && checkB)
            ||
@@ -655,19 +654,21 @@ bool  CemSolution::CheckAllDT(const int Sindex)
     // sleep(10);
     //initialize cursor pos
     Console::SetCursorPosition(3,Console::GetCursorY());
-    if (result)
-        sprintf_s(s,"\t->[%d]  .. [ok]",Sindex);
-    else
-        sprintf_s(s,"\n\t->[%d]  checking stage3 .. [failure]\n",Sindex);
+    if (result0) {
+        sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
+    }
+    else {
+        sprintf_s(s, "\n\t->[%d]  checking stage3 .. [failure] \n checkA:%d,checkB:%d\n", Sindex, checkA, checkB);
+    }
     Console::Write(s);
 
     //check grouping table
     /*checkA=checkDT(Sindex,&(Pr->weeka))  ;
     checkB=checkDT(Sindex,&(Pr->weekb))  ;
 
-    result=(Se->every2weeks && checkA)
+    result=(Se->_current.every2weeks && checkA)
            ||
-           (Se->every2weeks && checkB)
+           (Se->_current.every2weeks && checkB)
            ||
            (checkA && checkB);
 
@@ -681,17 +682,17 @@ bool  CemSolution::CheckAllDT(const int Sindex)
         sprintf_s(s,"\n   ->[%d]  checking stage3 .. [failure]\n",Sindex);
     Console::Write(s);
     */
-    return (result1 && result2 && result);
+    return (result1 && result2 && result0);
 
 }
 
-bool   CemSolution::verifyProcessedShifts(bool b)
+bool   ScheduleSolution::verifyProcessedShifts(bool b)
 {
     bool result=true;
 //int pass=0;
     int Sindex=0;
 
-    while (Sindex<FShiftTableCount)
+    while (Sindex<_dShifts.size())
     {
 
         if  (!CheckAllDT(Sindex))
@@ -700,9 +701,9 @@ bool   CemSolution::verifyProcessedShifts(bool b)
     }//while
 
     char s[254]="";
-    Console::Write("\n");
+    Console::WriteLine("");
     if (result)
-        Console::Write(  "\t->verifying processed Shifts -> [ok]\n");
+        Console::WriteLine(  "\t->verifying processed Shifts -> [ok]");
     else
         Console::WriteEx("\t->verifying processed Shifts -> [failure]\n",ColorRed);
 
@@ -710,14 +711,7 @@ bool   CemSolution::verifyProcessedShifts(bool b)
 }
 
 
-
-int    CemSolution::ShiftTableCount(void)
-{
-    return FShiftTableCount;
-
-}
-
-bool CemSolution::setLink(const int s1,const int s2,ClinkType Alink)
+bool ScheduleSolution::setLink(const int s1,const int s2,ELinkType Alink)
 {
 
     if((s1==-1)||(s2==-1))
@@ -728,19 +722,19 @@ bool CemSolution::setLink(const int s1,const int s2,ClinkType Alink)
     {
     case ltGroup: //set Grouped link Shift index
 
-        FShiftTable[s1].groupedwith=s2;
-        FShiftTable[s2].groupedwith=s1;
-        FShiftTable[s1].dogroupwith=s2;
-        FShiftTable[s2].dogroupwith=-1;
+        _dShifts[s1].groupedwith=s2;
+        _dShifts[s2].groupedwith=s1;
+        _dShifts[s1].dogroupwith=s2;
+        _dShifts[s2].dogroupwith=-1;
         FModified=true;
         break;
 
     case ltClear:
 
-        FShiftTable[s1].groupedwith=-1;
-        FShiftTable[s2].groupedwith=-1;
-        FShiftTable[s1].dogroupwith=-1;
-        FShiftTable[s2].dogroupwith=-1;
+        _dShifts[s1].groupedwith=-1;
+        _dShifts[s2].groupedwith=-1;
+        _dShifts[s1].dogroupwith=-1;
+        _dShifts[s2].dogroupwith=-1;
         FModified=true;
         break;
 
@@ -748,15 +742,15 @@ bool CemSolution::setLink(const int s1,const int s2,ClinkType Alink)
     return true;
 }
 
-bool CemSolution::FillCroom(const int AShift,const int ACroom,const int ADay,const int AHour,
-                             const CFillOption fo,const int gw,bool abool)
+bool ScheduleSolution::fillCroom(const int AShift,const int ACroom,const int ADay,const int AHour,
+                             const EFillMode fo,const int gw,bool abool)
 {
 
     int i=0;
     bool result=false;
-    int du=FShiftTable[AShift].length;
-    int classei=FShiftTable[AShift].cindex;
-    int profi=FShiftTable[AShift].pindex;
+    int du=_dShifts[AShift].length;
+    int classei=_dShifts[AShift].cindex;
+    int profi=_dShifts[AShift].pindex;
 
     if (abool)
     {
@@ -766,24 +760,24 @@ bool CemSolution::FillCroom(const int AShift,const int ACroom,const int ADay,con
             setLink(gw,AShift,ltGroup);
 
         }
-        FShiftTable[AShift].saindex=ACroom;   //fill with croom ind
-        FShiftTable[AShift].hour=AHour;
-        FShiftTable[AShift].day=ADay;
-        FShiftTable[AShift].doAlternatewith=(int)fo;
+        _dShifts[AShift].crindex=ACroom;   //fill with croom ind
+        _dShifts[AShift].hour=AHour;
+        _dShifts[AShift].day=ADay;
+        _dShifts[AShift].doAlternatewith=(int)fo;
 
         for (i= 0; i<du; i++)
         {
             if ((fo==foMixte)||(fo==foWeekA))
             {
                 if (gw==-1)
-                    FClasseTable[classei].weeka[ADay][AHour+i]=AShift;
+                    _dClasses[classei].weeka[ADay][AHour+i]=AShift;
                 FProfTable[profi].weeka[ADay][AHour+i]=AShift;
                 FCroomTable[ACroom].weeka[ADay][AHour+i]=AShift;
             }
             if ((fo==foMixte)||(fo==foWeekB))
             {
                 if (gw==-1)
-                    FClasseTable[classei].weekb[ADay][AHour+i]=AShift;
+                    _dClasses[classei].weekb[ADay][AHour+i]=AShift;
                 FProfTable[profi].weekb[ADay][AHour+i]=AShift;
                 FCroomTable[ACroom].weekb[ADay][AHour+i]=AShift;
             }
@@ -800,26 +794,26 @@ bool CemSolution::FillCroom(const int AShift,const int ACroom,const int ADay,con
             if ((fo==foMixte)||(fo==foWeekA))
             {
                 FCroomTable[ACroom].weeka[ADay][AHour+i]=-1;
-                FClasseTable[classei].weeka[ADay][AHour+i]=-1;
+                _dClasses[classei].weeka[ADay][AHour+i]=-1;
                 FProfTable[profi].weeka[ADay][AHour+i]=-1;
             }
             if ((fo==foMixte)||(fo==foWeekB))
             {
                 FCroomTable[ACroom].weekb[ADay][AHour+i]=-1;
-                FClasseTable[classei].weekb[ADay][AHour+i]=-1;
+                _dClasses[classei].weekb[ADay][AHour+i]=-1;
                 FProfTable[profi].weekb[ADay][AHour+i]=-1;
             }
 
         }
-        if (FShiftTable[AShift].groupedwith!=-1)
+        if (_dShifts[AShift].groupedwith!=-1)
         {
-            setLink(FShiftTable[AShift].groupedwith,AShift,ltClear);
+            setLink(_dShifts[AShift].groupedwith,AShift,ltClear);
 
         }
-        FShiftTable[AShift].saindex=-1;
-        FShiftTable[AShift].hour=-1;
-        FShiftTable[AShift].day=-1;
-        FShiftTable[AShift].doAlternatewith=(int)foNoWhere;
+        _dShifts[AShift].crindex=-1;
+        _dShifts[AShift].hour=-1;
+        _dShifts[AShift].day=-1;
+        _dShifts[AShift].doAlternatewith=(int)foNoWhere;
     }
     result=true;
 
@@ -829,17 +823,17 @@ bool CemSolution::FillCroom(const int AShift,const int ACroom,const int ADay,con
     return result;
 
 }
-void CemSolution::clearAllDT()
+void ScheduleSolution::clearAllDT()
 {
 
     int d,h,i;
     for (d= 0; d<11; d++)
         for (h= 0; h<=15; h++)
         {
-            for (i= 0; i<ClasseTableCount(); i++)
+            for (i= 0; i< _dClasses.size(); i++)
             {
-                FClasseTable[i].weeka[d][h]=-1;
-                FClasseTable[i].weekb[d][h]=-1;
+                _dClasses[i].weeka[d][h]=-1;
+                _dClasses[i].weekb[d][h]=-1;
             }
             for (i= 0; i<CroomTableCount(); i++)
             {
@@ -855,21 +849,21 @@ void CemSolution::clearAllDT()
         }
 }
 
-void CemSolution::rebuildSolution()
+void ScheduleSolution::rebuildSolution()
 {
 
     int e,gw;
     clearAllDT();
-    for(e=0 ; e< FShiftTableCount; e++)
+    for(e=0 ; e< _dShifts.size(); e++)
     {
-        if((FShiftTable[e].groupedwith!=-1)&&(FShiftTable[e].dogroupwith==-1))
-            gw=FShiftTable[e].groupedwith;
+        if((_dShifts[e].groupedwith!=-1)&&(_dShifts[e].dogroupwith==-1))
+            gw=_dShifts[e].groupedwith;
         else gw=-1;
-        FillCroom(e,
-                    FShiftTable[e].saindex,
-                    FShiftTable[e].day,
-                    FShiftTable[e].hour,
-                    (CFillOption)(FShiftTable[e].doAlternatewith),
+        fillCroom(e,
+                    _dShifts[e].crindex,
+                    _dShifts[e].day,
+                    _dShifts[e].hour,
+                    (EFillMode)(_dShifts[e].doAlternatewith),
                     gw,
                     true
                    );
@@ -882,17 +876,17 @@ void CemSolution::rebuildSolution()
   *
   * (documentation goes here)
   */
-CFillOption CemSolution::getShiftFillMode(const int Se)
+EFillMode ScheduleSolution::getShiftFillMode(const int Se)
 {
     int aday,ahour,croomi;
 
-    CFillOption result=foMixte;
+    EFillMode result=foMixte;
 
-    if (FShiftTable[Se].every2weeks)
+    if (_dShifts[Se].every2weeks)
     {
-        croomi=FShiftTable[Se].saindex;
-        aday=FShiftTable[Se].day ;
-        ahour=FShiftTable[Se].hour;
+        croomi=_dShifts[Se].crindex;
+        aday=_dShifts[Se].day ;
+        ahour=_dShifts[Se].hour;
         if (FCroomTable[croomi].weeka[aday][ahour]==Se)
             result=foWeekA;
         else  if (FCroomTable[croomi].weekb[aday][ahour]==Se)
@@ -908,30 +902,30 @@ CFillOption CemSolution::getShiftFillMode(const int Se)
   *
   * (documentation goes here)
   */
-bool CemSolution::CanBeByGroup(const int Se1,const int Se2,const int Aday,const int Ahour)
+bool ScheduleSolution::CanBeByGroup(const int Se1,const int Se2,const int Aday,const int Ahour)
 {
     return(
               (Se1!=-1)&&(Se2!=-1)&&(Ahour>=0)&&(Ahour<=15)                     &&
               (Se1!=Se2)                                                        &&
-              FShiftTable[Se1].bygroup                                         &&
-              FShiftTable[Se2].bygroup                                         &&
-              (FShiftTable[Se2].dogroupwith==-1)                               &&
-              (FShiftTable[Se1].groupedwith==-1)                               &&
-              (FShiftTable[Se2].groupedwith==-1)                               &&
-              (FShiftTable[Se1].every2weeks==FShiftTable[Se2].every2weeks)            &&
-              (FShiftTable[Se1].length==FShiftTable[Se2].length)                &&
-              (Aday==FShiftTable[Se2].day)                                     &&
-              (Ahour==FShiftTable[Se2].hour)
+              _dShifts[Se1].bygroup                                         &&
+              _dShifts[Se2].bygroup                                         &&
+              (_dShifts[Se2].dogroupwith==-1)                               &&
+              (_dShifts[Se1].groupedwith==-1)                               &&
+              (_dShifts[Se2].groupedwith==-1)                               &&
+              (_dShifts[Se1].every2weeks==_dShifts[Se2].every2weeks)            &&
+              (_dShifts[Se1].length==_dShifts[Se2].length)                &&
+              (Aday==_dShifts[Se2].day)                                     &&
+              (Ahour==_dShifts[Se2].hour)
           );
 
 }
-void CemSolution::shellSort()
+void ScheduleSolution::shellSort()
 {
     int n, i, j;
     CShift *pSe;
 
     n=0;
-    int Le=FShiftTableCount;
+    int Le=_dShifts.size();
     while(n<Le)
     {
         n=3*n+1;
@@ -942,29 +936,20 @@ void CemSolution::shellSort()
         n=n/3;
         for (i=n; i<Le; i++)
         {
-            pSe=&FShiftTable[i];
+            pSe=&_dShifts[i];
             j=i;
 
-            while((j>(n-1)) && (FShiftTable[j-n].length>pSe->length))
+            while((j>(n-1)) && (_dShifts[j-n].length>pSe->length))
             {
-                FShiftTable[j]=FShiftTable[j-n];
+                _dShifts[j]=_dShifts[j-n];
                 j=j-n;
             }
-            FShiftTable[j]=*pSe;
+            _dShifts[j]=*pSe;
         }
     }
 }
 
-
-/** @brief (one liner)
-  *
-  * (documentation goes here)
-  */
-void CemSolution::SetTablesCount()
-{
-
-}
-bool CemSolution::clearShift(const int se,bool abool)
+bool ScheduleSolution::clearShift(const int se,bool abool)
 {
     return true;
 }
@@ -972,7 +957,7 @@ bool CemSolution::clearShift(const int se,bool abool)
   *
   * (documentation goes here)
   */
-CMat* CemSolution::MatTable()
+CMat* ScheduleSolution::MatTable()
 {
     return FMatTable;
 }
@@ -981,7 +966,7 @@ CMat* CemSolution::MatTable()
   *
   * (documentation goes here)
   */
-CProf* CemSolution::ProfTable()
+CProf* ScheduleSolution::ProfTable()
 {
     return FProfTable;
 }
@@ -990,16 +975,16 @@ CProf* CemSolution::ProfTable()
   *
   * (documentation goes here)
   */
-CShift* CemSolution::ShiftTable()
+std::vector<CShift>& ScheduleSolution::ShiftTable()
 {
-    return FShiftTable;
+    return _dShifts;
 }
 
 /** @brief (one liner)
   *
   * (documentation goes here)
   */
-CCroom* CemSolution::CroomTable()
+CCroom* ScheduleSolution::CroomTable()
 {
     return FCroomTable;
 }
@@ -1008,51 +993,44 @@ CCroom* CemSolution::CroomTable()
   *
   * (documentation goes here)
   */
-CClasse* CemSolution::ClasseTable()
+std::vector<CClasse>& ScheduleSolution::ClasseTable()
 {
-    return FClasseTable;
+    return _dClasses;
 }
 
 /** @brief (one liner)
   *
   * (documentation goes here)
   */
-int CemSolution::MatTableCount(void)
+int ScheduleSolution::MatTableCount(void)
 {
-    return FMatTableCount;
+    return _stats.mats;
 }
 
 /** @brief (one liner)
   *
   * (documentation goes here)
   */
-int CemSolution::CroomTableCount(void)
+int ScheduleSolution::CroomTableCount(void)
 {
-    return FCroomTableCount;
+    return _stats.crooms;
 }
 
 /** @brief (one liner)
   *
   * (documentation goes here)
   */
-int CemSolution::ProfTableCount(void)
+int ScheduleSolution::ProfTableCount(void)
 {
-    return FProfTableCount;
+    return _stats.profs;
 }
 
-/** @brief (one liner)
-  *
-  * (documentation goes here)
-  */
-int CemSolution::ClasseTableCount(void)
-{
-    return FClasseTableCount;
-}
-int CemSolution::CroomCountByType(int stype){
+
+int ScheduleSolution::CroomCountByType(int cr_type){
 int i=0;
 int result=0;
-for(i=0;i<FCroomTableCount;i++){
-    if(FCroomTable[i].stype==stype)
+for(i=0;i<_stats.crooms;i++){
+    if(FCroomTable[i].stype==cr_type)
             result++;
 
     }
