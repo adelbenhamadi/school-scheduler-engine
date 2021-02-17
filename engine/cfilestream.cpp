@@ -7,7 +7,7 @@
 HANDLE openFile_em(const char * fn,wrMode fm,LONG shareMode=0){
 
 
-    DWORD dAccess;
+    DWORD dAccess = GENERIC_ALL;
     switch (fm){
         case wrWrite:       dAccess=GENERIC_WRITE;break;
         case wrRead:        dAccess=GENERIC_READ;break;
@@ -32,7 +32,7 @@ HANDLE openFile_em(const char * fn,wrMode fm,LONG shareMode=0){
 HANDLE createFile_em(const char * fn,wrMode fm,LONG shareMode=0){
 
 
-    DWORD dAccess;
+    DWORD dAccess = GENERIC_ALL;
     switch (fm){
         case wrWrite:       dAccess=GENERIC_WRITE;break;
         case wrRead:        dAccess=GENERIC_READ;break;
@@ -55,19 +55,20 @@ HANDLE createFile_em(const char * fn,wrMode fm,LONG shareMode=0){
 }
 
 CFileStream::CFileStream(const char* fn,cmMode fc,LONG shareMode)
+    : _fileName(fn),_handle(0),_position(0)
 {
     if (fn!=NULL){
     wrMode fm=wrWriteRead;
     switch (fc){
         case cmCreate:
-            handle=createFile_em(fn,fm,shareMode);
+            _handle=createFile_em(fn,fm,shareMode);
             break;
         case cmOpen  :
-            handle=openFile_em(fn,fm,shareMode);
+            _handle=openFile_em(fn,fm,shareMode);
             break;
 
     }
-    if(handle==INVALID_HANDLE_VALUE)
+    if(_handle==INVALID_HANDLE_VALUE)
         printf("invalid handle error!");
     }
 
@@ -75,14 +76,14 @@ CFileStream::CFileStream(const char* fn,cmMode fc,LONG shareMode)
 
 CFileStream::~CFileStream()
 {
-   if(handle>=0)
+   if(_handle>=0)
     closeFile();
 }
 DWORD CFileStream::write(LPCVOID buf,DWORD co){
-    DWORD nbytesWrite;
-    if((co>0)&&(handle!=INVALID_HANDLE_VALUE)){
-     if(WriteFile(handle, buf, co, &nbytesWrite, NULL))
-        return nbytesWrite;
+    DWORD writtenBytes;
+    if((co>0)&&(_handle!=INVALID_HANDLE_VALUE)){
+     if(WriteFile(_handle, buf, co, &writtenBytes, NULL))
+        return writtenBytes;
        else{
            return (DWORD)GetLastError();
         }
@@ -93,15 +94,15 @@ DWORD CFileStream::write(LPCVOID buf,DWORD co){
 }
 
 DWORD CFileStream::read(LPVOID buf,DWORD co){
-    DWORD nbytesRead;
-    if((co>0)&&(handle!=INVALID_HANDLE_VALUE)){
-    if(ReadFile(handle, buf, co, &nbytesRead, NULL)){
+    DWORD readBytes;
+    if((co>0)&&(_handle!=INVALID_HANDLE_VALUE)){
+    if(ReadFile(_handle, buf, co, &readBytes, NULL)){
         // Check for end of file.
-        if (nbytesRead == 0)
+        if (readBytes == 0)
         {
             // this is the end of the file
         }
-        return nbytesRead;
+        return readBytes;
     }
     else{
         return (DWORD)GetLastError();
@@ -114,7 +115,7 @@ DWORD CFileStream::read(LPVOID buf,DWORD co){
 
 DWORD CFileStream::seek(LONG offset,DWORD origin){
     DWORD ptr,err;
-   ptr=SetFilePointer(handle, offset, NULL, origin);
+   ptr=SetFilePointer(_handle, offset, NULL, origin);
    if(( ptr==INVALID_SET_FILE_POINTER) &&
        (err=GetLastError() != NO_ERROR)){
         printf("seek error!");
@@ -150,26 +151,26 @@ char* CFileStream::readString(void){
     return NULL;
 }
 
-bool CFileStream::LoadFromFile(const char* fn){
-     handle=openFile_em(fn,wrRead);
-    *fileName=*fn;
-    return (handle!=INVALID_HANDLE_VALUE);
+bool CFileStream::load(const char* fn){
+     _handle=openFile_em(fn,wrRead);
+    _fileName = fn;
+    return (_handle!=INVALID_HANDLE_VALUE);
 }
 
-bool CFileStream::SaveToFile(const char* fn){
-     handle=openFile_em(fn,wrWriteRead);
-    *fileName=*fn;
-    return (handle!=INVALID_HANDLE_VALUE);
+bool CFileStream::save(const char* fn){
+     _handle=openFile_em(fn,wrWriteRead);
+    _fileName = fn;
+    return (_handle!=INVALID_HANDLE_VALUE);
 
 }
 bool CFileStream::Save(void){
-    if((fileName!=NULL)&&(strlen(fileName)>0))
-       return (bool)SaveToFile(fileName);
+    if((_fileName!=NULL)&&(strlen(_fileName)>0))
+       return (bool)save(_fileName);
        return false;
 }
 bool    CFileStream::closeFile(void){
-    if(handle!=INVALID_HANDLE_VALUE)
-        return (CloseHandle(handle)!=0);
+    if(_handle!=INVALID_HANDLE_VALUE)
+        return (CloseHandle(_handle)!=0);
     return true;
 
 }
