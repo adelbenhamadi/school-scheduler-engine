@@ -6,17 +6,17 @@
 
 
 
-emEngine::~emEngine()
+ScheduleEngine::~ScheduleEngine()
 {
     //dtor
 }
-bool emEngine::release()
+bool ScheduleEngine::release()
 {
     delete this;
     return true;
 }
 
-emEngine::emEngine(): _solution(),_pluginInfo(),_engineConfig(){
+ScheduleEngine::ScheduleEngine(): _solution(),_pluginInfo(),_engineConfig(){
     //  pluginInfo.description="\0";
     //  pluginInfo.name=&ENGINENAME;
     _pluginInfo.version_maj = 1;
@@ -25,36 +25,32 @@ emEngine::emEngine(): _solution(),_pluginInfo(),_engineConfig(){
     _engineConfig.optimizebranching = false;
 }
 
-bool emEngine::load(CEngineConfig cfg){
+bool ScheduleEngine::load(CEngineConfig cfg){
   try
     {
         _engineConfig = cfg;
-        solution().LoadFromFile(_engineConfig.configfile);
-        shifts_count= _solution.ShiftTableCount();
-        crooms_count= _solution.CroomTableCount();
-        classes_count= _solution.ClasseTableCount();
-        prof_count= _solution.ProfTableCount();
-        mat_count= _solution.MatTableCount();
+        _solution.load(_engineConfig.configfile);
+       
+        const auto& st = _solution.stats();
+        _matMapDT=new CMapDayTable[st.classes];
 
-        FMatMapArray=new CMapDayTable[classes_count];
+        _matProcessLevel.reserve(st.mats);
 
-        FMatProcessMap=new CProcessLevelRecord[mat_count];
+        _mapClassesBitDT_A=new CBitDayTable[st.classes];
+        _mapCroomBitDT_A=new CBitDayTable[st.crooms];
+        _mapProfBitDT_A=new CBitDayTable[st.profs];
 
-        FMapClasseBitDT_A=new CBitDayTable[classes_count];
-        FMapCroomBitDT_A=new CBitDayTable[crooms_count];
-        FMapProfBitDT_A=new CBitDayTable[prof_count];
-
-        FMapClasseBitDT_B=new CBitDayTable[classes_count];
-        FMapCroomBitDT_B=new CBitDayTable[crooms_count];
-        FMapProfBitDT_B=new CBitDayTable[prof_count];
+        _mapClassesBitDT_B=new CBitDayTable[st.classes];
+        _mapCroomBitDT_B=new CBitDayTable[st.crooms];
+        _mapProfBitDT_B=new CBitDayTable[st.profs];
         FTypeCroomMapArray=new  CDayTable[MAX_CROOMTYPE_COUNT];
 
         #if  OPTIMIZE_BRANCHING ==1
         FmhtLength_b=new CMapHourTable[9];
         FmhtLength_e=new CMapHourTable[9];
 
-        FmdtMat_b=new CMapDayHoursTable[mat_count];
-        FmdtMat_e=new CMapDayHoursTable[mat_count];
+        FmdtMat_b=new CMapDayHoursTable[st.mats];
+        FmdtMat_e=new CMapDayHoursTable[st.mats];
         #endif
     }
     catch(...)
@@ -66,144 +62,139 @@ bool emEngine::load(CEngineConfig cfg){
     return true;
 }
 
-bool emEngine::save(const char* fn){
+bool ScheduleEngine::save(const char* fn){
 
-   return solution().SaveToFile(fn);
-
-}
-
-int emEngine::shiftsCount(){
-    return shifts_count;
+   return _solution.save(fn);
 
 }
-bool  emEngine::verifySolution(bool b){
-   return solution().verifyProcessedShifts(b);
+
+int ScheduleEngine::shiftsCount(){
+    return _solution.stats().shifts;
+
 }
-bool  emEngine::getOptimizeValue(int *hp,int*hc,int*cp,int*cc){
-   return solution().getOptimizeValue(hp,hc,cp,cc);
+bool  ScheduleEngine::verifySolution(bool b){
+   return _solution.verifyProcessedShifts(b);
+}
+bool  ScheduleEngine::getOptimizeValue(int *hp,int*hc,int*cp,int*cc){
+   return _solution.getOptimizeValue(hp,hc,cp,cc);
 }
 
-void emEngine::execute(bool _first ,bool _new)
+void ScheduleEngine::execute(bool _first ,bool _new)
 {
-    max_processed_shifts=0;
-    max_prof_hc=0;
-    max_classe_hc=0;
+    _processStats.max_shifts=0;
+    _profs_bh.high=0;
+    _classes_bh.high=0;
     time(&ptime);
-    if (_first)
+    if (_first) {
+
         stime=ptime;
+    }
     #if  OPTIMIZE_BRANCHING == 1
         printf("Optimize branching .....[enabled]\n");
     #else
         printf("Optimize branching .....[disabled]\n");
     #endif
 
-        solution().SetTablesCount();
-    highlevel_process_count=((int)_engineConfig.hltx*shifts_count / 100);
-    lowlevel_process_count=((int) _engineConfig.lltx*shifts_count / 100);
+    
+    _processStats.highlevel_count=((int)_engineConfig.hltx*_solution.stats().shifts / 100);
+    _processStats.lowlevel_count=((int) _engineConfig.lltx*_solution.stats().shifts / 100);
     printf("\nhltx=%2.2f%% %d/%d\nlltx=%2.2f%% %d/%d\nmltx=%2.2f%%\n\n",
-        _engineConfig.hltx,highlevel_process_count,shifts_count,
-        _engineConfig.lltx,lowlevel_process_count,shifts_count,
+        _engineConfig.hltx,_processStats.highlevel_count,_solution.stats().shifts,
+        _engineConfig.lltx,_processStats.lowlevel_count,_solution.stats().shifts,
         _engineConfig.mltx
 
           );
 
-    for(tmpi=0; tmpi<mat_count; tmpi++)
+    for(int i=0; i<_solution.stats().mats; i++)
     {
-        FMatProcessMap[tmpi].iprocess=0;
-        FMatProcessMap[tmpi].tx= _engineConfig.mltx;
-        FMatProcessMap[tmpi].shiftCount= solution().getShiftsCount(tmpi,emMat);
-        FMatProcessMap[tmpi].level=(int)(FMatProcessMap[tmpi].tx*FMatProcessMap[tmpi].shiftCount / 100);
-#if ENGINE_DEBUGMODE_LEVEL >=0
+        int sc = _solution.getShiftsCount(i, emMat);
+        ScheduleEngine::ProcessLevel pv(
+            sc,
+            (int)(_engineConfig.mltx * sc / 100),
+            _engineConfig.mltx,
+            0
+            );
+        _matProcessLevel.emplace_back(pv);
+       
+#if ENGINE_DEBUGMODE_LEVEL >0
         printf("mindex=%d   count=%d    level=%d\n",
-               tmpi,
-               FMatProcessMap[tmpi].shiftCount,
-               FMatProcessMap[tmpi].level);
+               i,
+               _matProcessLevel.back().shiftCount,
+               _matProcessLevel.back().level);
 #endif
     }
-
-
 
     initialize(_first || _new);
     cursor_y=Console::GetCursorY();
     startSearching();
-// Optimize;
+   //TODO Optimize;
+
 }
 /** @brief (one liner)
   *
   * (documentation goes here)
   */
-void emEngine::doFill()
+void ScheduleEngine::initProcesses()
 {
-    int j,k,l;
-
-    l=shifts_count;
-    FProcessArray=new int[l];
-
-    k=0;
-    for (j=0 ; j<l; j++)
+ 
+    //_dProcesses = new int[_solution.stats().shifts];
+    _dProcesses.clear();
+    //int k=0;
+    for (int j=0 ; j< _solution.stats().shifts; j++)
     {
 
-        /*  if  ((goNotProcessLockedShifts in solution().GlobalOptions) &&
-                    (doLocked in solution().shiftTable[j].Drawopt))
-                 || (solution().ClasseTable[solution().shiftTable[j].CIndex].NotIncluded &&(goNotIncludedClasse in solution().GlobalOptions))
-                 || (solution().ProfTable[solution().shiftTable[j].PIndex].NotIncluded &&(goNotIncludedProf in solution().GlobalOptions))
-                 || (solution().MatTable[solution().shiftTable[j].MIndex].NotIncluded &&(goNotIncludedMat in solution().GlobalOptions))
-
-               continue;
-
-        */
-        FProcessArray[k]=j ;
+       
+        //_dProcesses[k]=j ;
+        _dProcesses.push_back(j);
         //fix rank
-        solution().ShiftTable()[j].rank=k;
+        _solution.ShiftTable()[j].rank=j;
         //reset delat
-        solution().ShiftTable()[j].delta=8-solution().ShiftTable()[j].length;//(1+solution().ShiftTable()[j].every2weeks);
-        k++;
+        _solution.ShiftTable()[j].delta=8-_solution.ShiftTable()[j].length;//(1+_solution.ShiftTable()[j]._current.every2weeks);
+      
     }
 
-    // setlength(FProcessArray,k);
-    FProcessArrayLength=k;
+    _processesCount= _dProcesses.size();
 
 }
 
-bool emEngine::doCheck()
+bool ScheduleEngine::doCheck()
 {
-    int j,p;
 
-    for (p=0 ; p<FProcessArrayLength; p++)
-        for (j=0 ; j<FProcessArrayLength; j++)
-            if ((j!=p)&&(FProcessArray[p]==FProcessArray[j]))
+    for (int p=0 ; p<_processesCount; p++)
+        for (int j=0 ; j<_processesCount; j++)
+            if ((j!=p)&&(_dProcesses[p]==_dProcesses[j]))
             {
 
-                Console::WriteEx("   ->check FProcessArray duplication error for index %d && %d =>%d!",ColorRed);
+                Console::WriteEx("   ->check _dProcesses duplication error for index %d && %d =>%d!",ColorRed);
                 // Console::Pause("press p to continue","p");
                 return false;
             }
     return true;
 }
 
-unsigned long emEngine::getProcessArrayChecksum()
+unsigned long ScheduleEngine::processesCheckSum()
 {
 
-    unsigned long sum = _adler32((unsigned char*)FProcessArray,FProcessArrayLength);
+    unsigned long sum = _adler32((unsigned char*)&(_dProcesses[0]),_processesCount);
     //sum =sum^0xFFFFFFFF;
     // printf("\n checksum=%ld\n\n",sum);
     return unsigned(sum);
 
 }
 
-bool emEngine::moveIndex(int i1,int i2)
+bool ScheduleEngine::moveIndex(int i1,int i2)
 {
-    int  i,j, tmp,tmpI2;
+    int  pi1,tmpI2;
 
-    if ((i2>=i1)||(i1<1)||(i2<-1)||(i1>=shifts_count)||(i2>=shifts_count))
+    if ((i2>=i1)||(i1<1)||(i2<-1)||(i1>=_solution.stats().shifts)||(i2>=_solution.stats().shifts))
         return false;
-    tmp=FProcessArray[i1];//save i1
-    (solution().ShiftTable()[tmp].delta)++;
+    pi1=_dProcesses[i1];//save i1
+    ( _solution.ShiftTable()[pi1].delta)++;
     tmpI2=i2;
 
     if (tmpI2==-1)
-        for (j=0 ; j< i1; j++)
-            if (solution().ShiftTable()[tmp].delta>solution().ShiftTable()[FProcessArray[j]].delta)
+        for (int j=0 ; j< i1; j++)
+            if ( _solution.ShiftTable()[pi1].delta> _solution.ShiftTable()[_dProcesses[j]].delta)
             {
                 tmpI2=j;
                 break;
@@ -213,70 +204,70 @@ bool emEngine::moveIndex(int i1,int i2)
     if (tmpI2<0)
         return false;
     //translation
-    for (i=i1; i> tmpI2; i--)
-        FProcessArray[i]=FProcessArray[i-1];
-    FProcessArray[tmpI2]=tmp; // fill i2 with i1
+    for (int i=i1; i> tmpI2; i--)
+        _dProcesses[i]=_dProcesses[i-1];
+    _dProcesses[tmpI2]=pi1; // fill i2 with i1
     return true;
 }
 
-void emEngine::swapValues(const int v,const int w)
+void ScheduleEngine::swapValues(const int v,const int w)
 {
-    int tmp=FProcessArray[w] ;
-    FProcessArray[w]=FProcessArray[v];
-    FProcessArray[v]=tmp;
+    int tmp=_dProcesses[w] ;
+    _dProcesses[w]=_dProcesses[v];
+    _dProcesses[v]=tmp;
 
 }
 
-int emEngine::doPartition(const int p,const int r)
+int ScheduleEngine::doPartition(const int p,const int r)
 {
 
     //random pivot or not!!
-    //int x=FProcessArray[rand() % FProcessArrayLength];
-    int x=FProcessArray[r];
+    //int x=_dProcesses[rand() % _processesCount];
+    int x=_dProcesses[r];
 
-    tmpi=p-1;
+    int i=p-1;
 
-    for(tmpj=p; tmpj<r; tmpj++)
+    for(int j=p; j<r; j++)
     {
-        if(solution().ShiftTable()[FProcessArray[tmpj]].delta<=solution().ShiftTable()[x].delta)
+        if( _solution.ShiftTable()[_dProcesses[j]].delta<= _solution.ShiftTable()[x].delta)
         {
-            tmpi++;
-            swapValues(tmpi,tmpj);
+            i++;
+            swapValues(i,j);
         }
     }
-    swapValues(tmpi+1,r);
-    return tmpi+1;
+    swapValues(i+1,r);
+    return i+1;
 
 }
 
-void emEngine::doQuickSort(const bool ascendant,const int p,const int r)
+void ScheduleEngine::doQuickSort(const bool ascendant,const int p,const int r)
 {
 
     if(p<r)
     {
-        tmpk=doPartition(p,r);//pivot
-        doQuickSort(ascendant,p,tmpk-1);
-        doQuickSort(ascendant,tmpk+1,r);
+        int part=doPartition(p,r);//pivot
+        doQuickSort(ascendant,p, part -1);
+        doQuickSort(ascendant, part +1,r);
     }
 
 }
 
-void emEngine::doSort(const bool ascendant)
+void ScheduleEngine::doSort(const bool ascendant)
 {
 
-    doQuickSort(true,0,FProcessArrayLength-1);
+    doQuickSort(ascendant ,0,_processesCount-1);
 
-#if ENGINE_DEBUGMODE_LEVEL >=0
+#if ENGINE_DEBUGMODE_LEVEL >0
     int i;
-    for (i=0; i<FProcessArrayLength; i++)
+    for (i=0; i<_processesCount; i++)
     {
-        printf("%d   [%d]     rank=%d     length=%d   every2weeks=%d  delta=%d\n",
+        printf("%d   [%d]     rank=%d     length=%d   _current.every2weeks=%d  delta=%d\n",
                i,
-               FProcessArray[i],
-               solution().ShiftTable()[FProcessArray[i]].rank,
-               solution().ShiftTable()[FProcessArray[i]].length,
-               solution().ShiftTable()[FProcessArray[i]].every2weeks,
-               solution().ShiftTable()[FProcessArray[i]].delta
+               _dProcesses[i],
+               _solution.ShiftTable()[_dProcesses[i]].rank,
+               _solution.ShiftTable()[_dProcesses[i]].length,
+               _solution.ShiftTable()[_dProcesses[i]]._current.every2weeks,
+               _solution.ShiftTable()[_dProcesses[i]].delta
               );
     }
 #else
@@ -286,19 +277,20 @@ void emEngine::doSort(const bool ascendant)
 
 }
 
-void emEngine::doRandomize()
+void ScheduleEngine::doRandomize()
 {
   
-    for (int j=0 ; j<FProcessArrayLength; j++)
+    for (int j=0 ; j<_processesCount; j++)
     {
         srand(time(0));
-        swapValues(j,rand() % FProcessArrayLength);
-        // moveIndex(j,rand()% FProcessArrayLength);
-        // printf("random=%d\n",rand());
+        swapValues(j,rand() % _processesCount);
+        // moveIndex(j,rand()% _processesCount);
+        
     }
+    //printf("\nnew checksum: %ul", processesCheckSum());
 }
 
-void emEngine::doFillConstraintMap(){
+void ScheduleEngine::doFillConstraintMap(){
     int j,d,h;
 #if  OPTIMIZE_BRANCHING ==1
  for (d=0 ; d<6; d++)
@@ -342,37 +334,37 @@ void emEngine::doFillConstraintMap(){
    for (h=0 ; h<=15; h++)
    {
 
-   for (j=0 ; j<mat_count; j++)
+   for (j=0 ; j<_solution.stats().mats; j++)
     {
       FmdtMat_b[j][d][h]=0;
       FmdtMat_e[j][d][h]=0;
     }
 
     if(h<6){
-            FmdtMat_b[7][d][h]=FMatProcessMap[7].level;//HG >11h
+            FmdtMat_b[7][d][h]=_matProcessLevel[7].level;//HG >11h
 
 
         }
     if(h<4){
 
-            FmdtMat_b[8][d][h]=FMatProcessMap[8].level;//
-            FmdtMat_b[9][d][h]=FMatProcessMap[9].level;//
-            FmdtMat_b[10][d][h]=FMatProcessMap[10].level;//
+            FmdtMat_b[8][d][h]=_matProcessLevel[8].level;//
+            FmdtMat_b[9][d][h]=_matProcessLevel[9].level;//
+            FmdtMat_b[10][d][h]=_matProcessLevel[10].level;//
 
         }
     if(h>8){
-        FmdtMat_e[0][d][h]=FMatProcessMap[0].level;//math <12h
+        FmdtMat_e[0][d][h]=_matProcessLevel[0].level;//math <12h
       if(d==0)
-        FmdtMat_e[3][d][h]=FMatProcessMap[3].level;//arabe lundi <12h
+        FmdtMat_e[3][d][h]=_matProcessLevel[3].level;//arabe lundi <12h
       if(d<=1)
-        FmdtMat_e[4][d][h]=FMatProcessMap[4].level;//francais lundi,mardi <12h
+        FmdtMat_e[4][d][h]=_matProcessLevel[4].level;//francais lundi,mardi <12h
      if(d==3)
-        FmdtMat_e[5][d][h]=FMatProcessMap[5].level;//
+        FmdtMat_e[5][d][h]=_matProcessLevel[5].level;//
     }
 
     if(h>12){
-        FmdtMat_e[0][d][h]=shifts_count;
-        FmdtMat_e[13][d][h]=shifts_count; //ph <14h 100%
+        FmdtMat_e[0][d][h]=_solution.stats().shifts;
+        FmdtMat_e[13][d][h]=_solution.stats().shifts; //ph <14h 100%
         }
 
     if(h>14){
@@ -383,19 +375,19 @@ void emEngine::doFillConstraintMap(){
 #endif
 }
 
-void emEngine::initialize(const bool AReset)
+void ScheduleEngine::initialize(const bool AReset)
 {
     if (AReset)
     {
-        process_percent=0;
+        _processStats.percent=0;
 
-        doFill();
-        doCheck();
-        //  if (goRandomizeShifts in solution().GlobalOptions)
+        initProcesses();
+        if (doCheck() == false) {
+            perror("Engine initialize error: bad check!");
+        }
+        //  if (goRandomizeShifts in _solution.GlobalOptions)
         doRandomize();
-        doSort(true);
-        //FProcessArrayChecksum=0;
-        FProcessArrayChecksum=getProcessArrayChecksum();
+        FProcessArrayChecksum=processesCheckSum();
         #if  OPTIMIZE_BRANCHING ==1
         doFillConstraintMap();
         #endif
@@ -403,102 +395,102 @@ void emEngine::initialize(const bool AReset)
 
     }
     if (
-        (   (process_speed>=1000) && (process_tries_count > (50000-(int)process_speed*10) )  )
-        || ((process_tries_count-process_last_progession)>(1000+(int)process_percent*500))
+        (   (_processStats.speed>=1000) && (_processStats.tries_count > (50000-(int)_processStats.speed*10) )  )
+        || ((_processStats.tries_count-_processStats.last_progession)>(1000+(int)_processStats.percent*500))
     )
     {
 
-        Console::WriteEx("\n        bad search path reprocessing..",ColorRed);
+        Console::WriteEx("\n\tbad search path, reprocessing..",ColorRed);
         cursor_y++;
         Sleep(1000);
-        /* if(true || (process_percent<99.0)){
+         /*if(_processStats.percent<99.0 ){
          doRandomize();
-
+         }
+         else {
+          doSort(true);
          }*/
-        //doRandomize();
-        doSort(true);
-
-        process_tries_count=0;
-        process_last_progession=process_tries_count;
-        max_processed_shifts=0;
-        max_prof_hc=0;
-        max_classe_hc=0;
+        doRandomize();
+        _processStats.tries_count=0;
+        _processStats.last_progession=_processStats.tries_count;
+        _processStats.max_shifts=0;
+        _profs_bh.high=0;
+        _classes_bh.high=0;
         time(&ptime);
-        FProcessArrayChecksum=getProcessArrayChecksum();
+        FProcessArrayChecksum=processesCheckSum();
     }
 
-    for (tmpi=0 ; tmpi< MAX_CROOMTYPE_COUNT; tmpi++){
-       tmpf=solution().CroomCountByType(tmpi);
-      // printf("type croom:%d        count:%d\n",tmpi,tmpf);
-       for (tmpj=0 ; tmpj<10; tmpj++)
-          for (tmpk=0 ; tmpk<16; tmpk++)
-            FTypeCroomMapArray[tmpi][tmpj][tmpk]=tmpf ;
+    for (int i=0 ; i< MAX_CROOMTYPE_COUNT; i++){
+      int c=_solution.CroomCountByType(i);
+      // printf("type croom:%d        count:%d\n",i,tmpf);
+       for (int j=0 ; j<10; j++)
+          for (int k=0 ; k<16; k++)
+            FTypeCroomMapArray[i][j][k]=c ;
     }
 
 
 
-    for (tmpi=0 ; tmpi<classes_count; tmpi++)
-        for (tmpj=0 ; tmpj<mat_count; tmpj++)
-            for (tmpk=0 ; tmpk<6; tmpk++)
-                FMatMapArray[tmpi][tmpj][tmpk]=0;
+    for (int i=0 ; i<_solution.stats().classes; i++)
+        for (int j=0 ; j<_solution.stats().mats; j++)
+            for (int k=0 ; k<6; k++)
+                _matMapDT[i][j][k]=0;
 
-    if (FProcessArrayLength<shifts_count)
+    if (_processesCount<_solution.stats().shifts)
     {
-        for (tmpi=0 ; tmpi<FProcessArrayLength; tmpi++)
-            solution().clearShift(FProcessArray[tmpi],true);
+        for (int i=0 ; i<_processesCount; i++)
+            _solution.clearShift(_dProcesses[i],true);
     }
     else
     {
         //doit for all!
 
-        for (tmpk=0 ; tmpk<=10; tmpk++)
+        for (int k=0 ; k<=10; k++)
         {
-            for (tmpi=0; tmpi<classes_count; tmpi++)
+            for (int i=0; i<_solution.stats().classes; i++)
             {
-                FMapClasseBitDT_A[tmpi][tmpk]=0;
-                FMapClasseBitDT_B[tmpi][tmpk]=0;
+                _mapClassesBitDT_A[i][k]=0;
+                _mapClassesBitDT_B[i][k]=0;
             }
 
-            for (tmpi=0; tmpi<prof_count; tmpi++)
+            for (int i=0; i<_solution.stats().profs; i++)
             {
-                FMapProfBitDT_A[tmpi][tmpk]=0;
-                FMapProfBitDT_B[tmpi][tmpk]=0;
+                _mapProfBitDT_A[i][k]=0;
+                _mapProfBitDT_B[i][k]=0;
 
             }
 
-            for (tmpi=0; tmpi<crooms_count; tmpi++)
+            for (int i=0; i<_solution.stats().crooms; i++)
             {
-                FMapCroomBitDT_A[tmpi][tmpk]=0;
-                FMapCroomBitDT_B[tmpi][tmpk]=0;
+                _mapCroomBitDT_A[i][k]=0;
+                _mapCroomBitDT_B[i][k]=0;
             }
 
         }
 
 
-        for (tmpi=0; tmpi<shifts_count; tmpi++)
+        for (int i=0; i<_solution.stats().shifts; i++)
         {
-
-            solution().ShiftTable()[tmpi].day=-1;
-            solution().ShiftTable()[tmpi].hour=-1;
-            solution().ShiftTable()[tmpi].doAlternatewith=(int)foNoWhere;
-            solution().ShiftTable()[tmpi].dogroupwith=-1;
-            solution().ShiftTable()[tmpi].groupedwith=-1;
+           // CShift& sh = _solution.ShiftTable()[i];
+            _solution.ShiftTable()[i].day=-1;
+            _solution.ShiftTable()[i].hour=-1;
+            _solution.ShiftTable()[i].doAlternatewith=(int)foNoWhere;
+            _solution.ShiftTable()[i].dogroupwith=-1;
+            _solution.ShiftTable()[i].groupedwith=-1;
         }
 
     }
-    for (tmpi=0; tmpi<mat_count; tmpi++)
+    for (int i=0; i<_solution.stats().mats; i++)
     {
-        FMatProcessMap[tmpi].iprocess=0;
+        _matProcessLevel[i].iprocess =0;
 
     }
-    curcindex=-1;
-    curmindex=-1;
-    curpindex=-1;
+    _current.cindex=-1;
+    _current.mindex=-1;
+    _current.pindex=-1;
 
-    prof_hc=0;
-    classe_hc=0;
-    PrDay=-1;
-    PrHour=-1;
+    _profs_bh.count=0;
+    _classes_bh.count=0;
+    _processHour.day=-1;
+    _processHour.start=-1;
 
 }
 
@@ -507,92 +499,86 @@ void emEngine::initialize(const bool AReset)
   * (documentation goes here)
   */
 
-bool emEngine::startSearching()
+bool ScheduleEngine::startSearching()
 {
 
     SYSTEMTIME st0,st1;
     int valp,valc,osp,osc;
     double diff_time;
-    process_running=true;//! result;
-    process_tries_count=0;
-    process_last_progession=0;
-    // NextShift
-    iprocess=0;;
-    PrHour=0;
+    _processStats.running=true;
+    _processStats.tries_count=0;
+    _processStats.last_progession=0;
+  
+    _processHour.index=0;;
+    _processHour.start=0;
     initStartDay();
-    while (iprocess<FProcessArrayLength)
+    while (_processHour.index<_processesCount)
     {
 
-#if ENGINE_DEBUGMODE_LEVEL >=1
-        printf("[%d] Shift[%d] entering process()\n",iprocess,FProcessArray[iprocess]);
+#if ENGINE_DEBUGMODE_LEVEL >1
+        printf("\r[%d] Shift[%d] processing",_processHour.index,_dProcesses[_processHour.index]);
 #else
 
 #endif
 
 
-        if (process()==true)
+        if (process())
         {
             // NextShift
-            iprocess++;
-            PrHour=0;
+            _processHour.index++;
+            _processHour.start=0;
         }
-        else //! processed
+        else //not processed
         {
-            PrHour++;
-            if (PrHour>15) //reach last hour
+            //next process hour
+            _processHour.start++;
+            if (_processHour.start>15) //reach last hour
             {
 
-                PrHour=0;
-                moveIndex(iprocess,-1/*max(0,2*i-FShiftTableCount)*/);
+                _processHour.start=0;
+                if (!moveIndex(_processHour.index, -1/*max(0,2*i-_dShifts.size())*/)) {
+                    printf("\n moveIndex failure: %d", _processHour.index);
+                }
                 initialize(false);
-                last_max_processed_shifts=max_processed_shifts;
-                max_processed_shifts=(iprocess>=max_processed_shifts)?iprocess:max_processed_shifts;
-                 if(max_processed_shifts>last_max_processed_shifts)
-                    process_last_progession= process_tries_count;
-                iprocess=0;
+                _processStats.last_max_shifts=_processStats.max_shifts;
+                _processStats.max_shifts=(_processHour.index>=_processStats.max_shifts)?_processHour.index:_processStats.max_shifts;
+                 if(_processStats.max_shifts>_processStats.last_max_shifts)
+                    _processStats.last_progession= _processStats.tries_count;
+                _processHour.index=0;
 
-                process_tries_count++;
-        #if SLOW_PRINTING ==1
-              if (process_tries_count % 101==0){
+                _processStats.tries_count++;
+        #if SLOW_PRINTING
+              if (_processStats.tries_count % 10==0){
         #endif
-                //solution().getOptimizeValue(&valp,&valc,&osp,&osc);
+                //_solution.getOptimizeValue(&valp,&valc,&osp,&osc);
                 diff_time=difftime(time(0),ptime);
-                max_prof_hc=(max_prof_hc>prof_hc)?max_prof_hc:prof_hc;
-                max_classe_hc=(max_classe_hc>classe_hc)?max_classe_hc:classe_hc;
-                //if(diff_time>=2){
+                _profs_bh.high=(_profs_bh.high>_profs_bh.count)?_profs_bh.high:_profs_bh.count;
+                _classes_bh.high=(_classes_bh.high>_classes_bh.count)?_classes_bh.high:_classes_bh.count;
 
-
-
-                //progression_tx=process_percent;
-                process_percent=(double)max_processed_shifts/(double)shifts_count*100;
-
-               /* progression_tx=(process_percent-progression_tx)/diff_time*100;
-                if(progression_tx>0.0001)
-                    process_last_progession = process_tries_count;
-                */
+                //progression_tx=_processStats.percent;
+                _processStats.percent=(double)_processStats.max_shifts/(double)_solution.stats().shifts*100;
 
                 time_t2SystemTime(time(0)-ptime,&st0);
                 time_t2SystemTime(time(0)-stime,&st1);
 
-                process_speed=(double)(process_tries_count/diff_time);
+                _processStats.speed=(double)(_processStats.tries_count/diff_time);
 
                 Console::SetCursorPosition(3,cursor_y);
-                // printf("\n",FProcessArrayChecksum);
-                printf("%06d  %c %02.3f%% %04d/%04d %04.0f/s p:%d %04d crc%012ld",
-                       process_tries_count+1,
-                       SPEED_SYM[process_tries_count % 4],
+                printf("%05d #%03d %c %02.3f%% %d/%d %d/s  BH (p:%d , c:%d)",
+                       _processStats.tries_count+1,
+                       _processStats.tries_count-_processStats.last_progession,
+                       SPEED_SYM[_processStats.tries_count % 4],
 
-                       process_percent,
-                       max_processed_shifts,
-                       shifts_count,
-                       process_speed,
-                       max_prof_hc,
-                       process_tries_count-process_last_progession,
-                       FProcessArrayChecksum
-
+                       _processStats.percent,
+                       _processStats.max_shifts,
+                       _processStats.all_shifts,
+                       _processStats.speed,
+                       _profs_bh.count,
+                       _classes_bh.count
+                      
+                       
                       );
-                //Console::Write(s);
-                //printf("",difftime(time(0),ptime),difftime(time(0),stime));
+                //printf(" crc%012ld", FProcessArrayChecksum);
                 printf(" %02d:%02d:%02d/%02d:%02d:%02d",
                        st0.wHour, st0.wMinute,st0.wSecond,
                        st1.wHour, st1.wMinute,st1.wSecond);
@@ -600,15 +586,15 @@ bool emEngine::startSearching()
             #if SLOW_PRINTING ==1
                 }
             #endif
-            }//else
-        } //if else  end ! processed
+            }//end  if (_processHour.start>15) 
+        } //end not processed
 
 
     }  //while
-    all_processed_shifts=iprocess;
-    if(all_processed_shifts==FProcessArrayLength)
+    _processStats.all_shifts=_processHour.index;
+    if(_processStats.all_shifts==_processesCount)
     {
-        solution().rebuildSolution();
+        _solution.rebuildSolution();
         return true;
     }
     return false;
@@ -618,49 +604,49 @@ bool emEngine::startSearching()
   *
   * (documentation goes here)
   */
-bool emEngine::process()
+bool ScheduleEngine::process()
 {
-    bresult=false;
-    //isForbiddenday=false;
-    tmpgw=-1;
-    tmpfo=foMixte;
-    cursindex=FProcessArray[iprocess];
-    curShift=&solution().ShiftTable()[cursindex];
-    curlength=curShift->length;
+    bool result=false;
+    //_current.isForbidden=false;
+    _processHour.groupWith=-1;
+    _current.fillMode= EFillMode::foMixte;
+    _current.sindex=_dProcesses[_processHour.index];
+    _currentShift=&_solution.ShiftTable()[_current.sindex];
+    _current.length=_currentShift->length;
 
-    curmindex=curShift->mindex;
-    curcindex=curShift->cindex;
-    curpindex=curShift->pindex;
-    curfday=solution().ProfTable()[curpindex].fday;
+    _current.mindex=_currentShift->mindex;
+    _current.cindex=_currentShift->cindex;
+    _current.pindex=_currentShift->pindex;
+    _current.fday=_solution.ProfTable()[_current.pindex].fday;
 
-    if (curpindex==-1)
+    if (_current.pindex==-1)
     {
         /* ShowMessage(format('FATAL ERROR: No "PROF" assigned for "Shift":%d "Mat":%d "Classe":%d',
-        [cursindex,curmindex,curCindex])); */
-        Console::Write("FATAL ERROR: No 'PROF' assigned for 'Shift' n:");
-        Console::Write(cursindex);
+        [_current.sindex,_current.mindex,curCindex])); */
+        Console::Write("FATAL ERROR: No 'PROFESSOR' assigned for 'SHIFT' n:");
+        Console::Write(_current.sindex);
         return false;
     }
 
 
-    PrDay=PrStartDay-1;
+    _processHour.day = _processHour.startDay-1;
     nextDay();
-    PrCroom=0;
+    _processHour.croom=0;
 
-    tmpbitset=(1 << curlength)-1;
-    tmpbitset=tmpbitset << (32-curlength-PrHour);
+    _current.bitset=(1 << _current.length)-1;
+    _current.bitset=_current.bitset << (32- _current.length-_processHour.start);
 
-    while (PrCroom<crooms_count)
+    while (_processHour.croom<_solution.stats().crooms)
     {
         if (
-            (!isForbiddenday)
-            &&(curShift->type_croom==solution().CroomTable()[PrCroom].stype)
+            (!_current.isForbidden)
+            &&(_currentShift->croom_type== _solution.CroomTable()[_processHour.croom].stype)
             &&(checkIsEmpty()!=-1)
         )
         {
             //TODO:check next && previous Shift
-            bresult=fillCroom();
-            if (bresult)
+            result = fillCroom();
+            if (result)
                 break;
             else
                 fillCroom(false) ;
@@ -668,12 +654,12 @@ bool emEngine::process()
 
         }
 
-        PrCroom++;
-        if (isForbiddenday ||(PrCroom>=crooms_count))
+        _processHour.croom++;
+        if (_current.isForbidden ||(_processHour.croom>=_solution.stats().crooms))
         {
-            PrCroom=0;
+            _processHour.croom=0;
             nextDay();
-            if (PrDay==PrStartDay)
+            if (_processHour.day==_processHour.startDay)
                 break;
 
 
@@ -681,14 +667,14 @@ bool emEngine::process()
 
 
     }  //end  while
-#if ENGINE_DEBUGMODE_LEVEL >=2
-    printf("    ->[%d] process()  result=[%d]\n",cursindex,bresult);
+#if ENGINE_DEBUGMODE_LEVEL >2
+    printf("    ->[%d] process()  result=[%d]\n", _current.sindex,result);
 #else
 
 #endif
 
 
-    return bresult;
+    return result;
 
 }
 
@@ -697,86 +683,86 @@ bool emEngine::process()
   *
   * (documentation goes here)
   */
-bool emEngine::fillCroom(bool abool)
+bool ScheduleEngine::fillCroom(bool abool)
 {
-    bresult=false;
+    bool result=false;
     if (abool)
     {
-
-          if (tmpgw!=-1)
+        //if we have to setLink 
+          if (_processHour.groupWith!=-1)
           {
-            solution().setLink(tmpgw,cursindex,ltGroup);
+            _solution.setLink(_processHour.groupWith, _current.sindex,ltGroup);
           }
-          curShift->saindex=PrCroom;
-          curShift->hour=PrHour;
-          curShift->day=PrDay;
-          curShift->doAlternatewith=(int)(tmpfo);
+          _currentShift->crindex=_processHour.croom;
+          _currentShift->hour=_processHour.start;
+          _currentShift->day=_processHour.day;
+          _currentShift->doAlternatewith=(int)(_current.fillMode);
 
-       // solution().FillCroom(cursindex,PrCroom,PrDay,PrHour,tmpfo,tmpgw,true);
+       // _solution.fillCroom(_current.sindex,_processHour.croom,_processHour.day,_processHour.start,_current.fillMode,_processHour.groupWith,true);
 
-        if ((tmpfo==foMixte)||(tmpfo==foWeekA))
+        if ((_current.fillMode==foMixte)||(_current.fillMode==foWeekA))
         {
-            if (tmpgw==-1)
-                FMapClasseBitDT_A[curcindex][PrDay]|= tmpbitset;
-            FMapCroomBitDT_A[PrCroom][PrDay] |= tmpbitset;
-            FMapProfBitDT_A[curpindex][PrDay]|= tmpbitset;
+            if (_processHour.groupWith==-1)
+                _mapClassesBitDT_A[_current.cindex][_processHour.day]|= _current.bitset;
+            _mapCroomBitDT_A[_processHour.croom][_processHour.day] |= _current.bitset;
+            _mapProfBitDT_A[_current.pindex][_processHour.day]|= _current.bitset;
 
         }
-        if ((tmpfo==foMixte)||(tmpfo==foWeekB))
+        if ((_current.fillMode==foMixte)||(_current.fillMode==foWeekB))
         {
-            if (tmpgw==-1)
-                FMapClasseBitDT_B[curcindex][PrDay]|= tmpbitset;
-            FMapCroomBitDT_B[PrCroom][PrDay] |= tmpbitset;
-            FMapProfBitDT_B[curpindex][PrDay]|= tmpbitset;
+            if (_processHour.groupWith==-1)
+                _mapClassesBitDT_B[_current.cindex][_processHour.day]|= _current.bitset;
+            _mapCroomBitDT_B[_processHour.croom][_processHour.day] |= _current.bitset;
+            _mapProfBitDT_B[_current.pindex][_processHour.day]|= _current.bitset;
         }
 
-        //update FMatMapArray
-        FMatMapArray[curcindex][curmindex][PrDay]=1;
-        /* if(tmpgw!=-1)
-             FMatMapArray[curcindex][solution().ShiftTable()[tmpgw].mindex][PrDay]=1;*/
-        FMatProcessMap[curmindex].iprocess++;
-        FTypeCroomMapArray[curShift->type_croom][PrDay][PrHour]--;
-       /* if (after_hc==true)
-            prof_hc++;
-        if((prof_hc>0)&&(PrEndhour!=8)&&(PrEndhour!=16)&&(solution().ProfTable()[curpindex].weeka[PrDay][PrEndhour]!=-1))
-            prof_hc--;
+        //update _matMapDT
+        _matMapDT[_current.cindex][_current.mindex][_processHour.day]=1;
+        /* if(_processHour.groupWith!=-1)
+             _matMapDT[_current.cindex][_solution.ShiftTable()[_processHour.groupWith].mindex][_processHour.day]=1;*/
+        _matProcessLevel[_current.mindex].iprocess++;
+        FTypeCroomMapArray[_currentShift->croom_type][_processHour.day][_processHour.start]--;
+       /* if (_after_break_hour==true)
+            _profs_bh.count++;
+        if((_profs_bh.count>0)&&(_processHour.end!=8)&&(_processHour.end!=16)&&(_solution.ProfTable()[curpindex].weeka[_processHour.day][_processHour.end]!=-1))
+            _profs_bh.count--;
 */
         //dec delta
-        //curShift->delta--;
-        bresult=true;
+        //_currentShift->delta--;
+        result=true;
     }
     else
     {
-        /* curShift->saindex=-1;
-         curShift->hour=-1;
-         curShift->day=-1;
-         curShift->doAlternatewith=(int)(foNoWhere);
-          if (curShift->groupedwith!=-1)
+        /* _currentShift->crindex=-1;
+         _currentShift->hour=-1;
+         _currentShift->day=-1;
+         _currentShift->doAlternatewith=(int)(foNoWhere);
+          if (_currentShift->groupedwith!=-1)
          {
-            solution().setLink(cursindex,curShift->groupedwith,ltClear);
+            _solution.setLink(_current.sindex,_currentShift->groupedwith,ltClear);
 
          }
 
          */
-        //solution().FillCroom(cursindex,PrCroom,PrDay,PrHour,tmpfo,tmpgw,false);
+        //_solution.fillCroom(_current.sindex,_processHour.croom,_processHour.day,_processHour.start,_current.fillMode,_processHour.groupWith,false);
 
-        //update FMatMapArray
-        // FMatMapArray[curcindex][curmindex][PrDay]=0;
+        //update _matMapDT
+        // _matMapDT[_current.cindex][_current.mindex][_processHour.day]=0;
 
-        bresult=true;
+        result=true;
     }
 
 
-    if (!bresult)
-        Console::WriteEx("RepmliCroom failed!",ColorRed);
-#if ENGINE_DEBUGMODE_LEVEL >=2
-    else  printf("\t->[%d] RepmliCroom n:%d ....[ok]\n",cursindex,PrCroom);
+    if (!result)
+        Console::WriteEx("fillCroom() failed!",ColorRed);
+#if ENGINE_DEBUGMODE_LEVEL >2
+    else  printf("\t->[%d] fillCroom() n:%d ....[ok]\n", _current.sindex,_processHour.croom);
 #else
 
 #endif
 
 
-    return bresult;
+    return result;
 
 }
 
@@ -784,43 +770,43 @@ bool emEngine::fillCroom(bool abool)
   *
   * (documentation goes here)
   */
-int emEngine::checkIsEmpty()
+int ScheduleEngine::checkIsEmpty()
 {
-    iresultA=-1;
-    iresult=-1;
-    tmpgw=-1;
+    int iresultA=-1;
+    int iresult=-1;
+    _processHour.groupWith=-1;
 
-    every2weeks= curShift->every2weeks;
+    _current.every2w= _currentShift->every2weeks;
 
-    tmpfo=foWeekA;
+    _current.fillMode=foWeekA;
 
-    CroomBitDT=&FMapCroomBitDT_A[PrCroom];
-    ProfBitDT=&FMapProfBitDT_A[curpindex];
-    ClasseBitDT=&FMapClasseBitDT_A[curcindex];
-    class_se=solution().ClasseTable()[curcindex].weeka[PrDay][PrHour] ;//class  shift
+    CroomBitDT=&_mapCroomBitDT_A[_processHour.croom];
+    ProfBitDT=&_mapProfBitDT_A[_current.pindex];
+    ClasseBitDT=&_mapClassesBitDT_A[_current.cindex];
+    _current.class_shift = _solution.ClasseTable()[_current.cindex].weeka[_processHour.day][_processHour.start] ;//class  shift
     iresult=checkEmptyDT();
-    if (((iresult==-1)&& every2weeks)|| ((iresult!=-1) && !every2weeks))
+    if (((iresult==-1)&& _current.every2w)|| ((iresult!=-1) && !_current.every2w))
     {
-        if (every2weeks)
-            tmpfo=foWeekB;
+        if (_current.every2w)
+            _current.fillMode=foWeekB;
         else
-            tmpfo=foMixte;
+            _current.fillMode=foMixte;
 
-        CroomBitDT=&FMapCroomBitDT_B[PrCroom];
-        ProfBitDT=&FMapProfBitDT_B[curpindex];
-        ClasseBitDT=&FMapClasseBitDT_B[curcindex];
-        class_se=solution().ClasseTable()[curcindex].weekb[PrDay][PrHour] ;//class  shift
+        CroomBitDT=&_mapCroomBitDT_B[_processHour.croom];
+        ProfBitDT=&_mapProfBitDT_B[_current.pindex];
+        ClasseBitDT=&_mapClassesBitDT_B[_current.cindex];
+        _current.class_shift = _solution.ClasseTable()[_current.cindex].weekb[_processHour.day][_processHour.start] ;//class  shift
         iresultA=iresult;
         iresult=checkEmptyDT();
-        if (!every2weeks && (iresult!=iresultA))
+        if (!_current.every2w && (iresult!=iresultA))
             iresult=-1 ;
     }
 
 
-    if ((iresult!=-1) && (class_se!=-1) && bcangroup)
-        tmpgw=class_se;
-#if ENGINE_DEBUGMODE_LEVEL >=3
-    printf("\t->[%d] checkIsEmpty  result=[%d] PrHour=[%d]\n",cursindex,iresult,PrHour);
+    if ((iresult!=-1) && (_current.class_shift !=-1) && _current.canBeGrouped)
+        _processHour.groupWith = _current.class_shift;
+#if ENGINE_DEBUGMODE_LEVEL >3
+    printf("\t->[%d] checkIsEmpty  result=[%d] _processHour.start=[%d]\n", _current.sindex,iresult,_processHour.start);
 #else
 
 #endif
@@ -833,19 +819,19 @@ int emEngine::checkIsEmpty()
   *
   * (documentation goes here)
   */
-inline int emEngine::checkEmptyDT()
+inline int ScheduleEngine::checkEmptyDT()
 {
 
-    bcangroup=solution().CanBeByGroup(cursindex,class_se,PrDay,PrHour);
+    _current.canBeGrouped=_solution.CanBeByGroup(_current.sindex, _current.class_shift ,_processHour.day,_processHour.start);
 
-    if(  (( ( (*ClasseBitDT)[PrDay] & tmpbitset) !=0 ) && ! bcangroup )||
-            ( ( (*CroomBitDT)[PrDay] & tmpbitset) !=0 )  ||
-            ( ( (*ProfBitDT)[PrDay] & tmpbitset) !=0 )
+    if(  (( ( (*ClasseBitDT)[_processHour.day] & _current.bitset) !=0 ) && ! _current.canBeGrouped )||
+            ( ( (*CroomBitDT)[_processHour.day] & _current.bitset) !=0 )  ||
+            ( ( (*ProfBitDT)[_processHour.day] & _current.bitset) !=0 )
       )
         return -1;
 
 
-    return PrHour;
+    return _processHour.start;
 
 }
 
@@ -853,107 +839,54 @@ inline int emEngine::checkEmptyDT()
   *
   * (documentation goes here)
   */
-void emEngine::initStartDay()
+void ScheduleEngine::initStartDay()
 {
     srand(time(0))  ;
-    PrStartDay=rand() % 5;
-    //PrDay=PrStartDay;
+    _processHour.startDay=rand() % 5;
+    //_processHour.day=_processHour.startDay;
 }
 
 /** @brief (one liner)
   *
   * (documentation goes here)
   */
-void emEngine::nextDay()
+void ScheduleEngine::nextDay()
 {
-    PrDay++;
-    PrDay=PrDay % 6;
-    PrEndhour=PrHour+curlength;
-   // after_hc=(PrHour>0) && (PrHour!=8) && (solution().ProfTable()[curpindex].weeka[PrDay][PrHour-1]==-1);
-    isForbiddenday=
-        (PrDay==curfday)
-        || (FMatMapArray[curcindex][curmindex][PrDay]==1)//no 2 mat in same day
-        ||(FTypeCroomMapArray[curShift->type_croom][PrDay][PrHour]<=0)
-        ||( PrEndhour>16) //soir
-        || ((PrHour<8)&&( PrEndhour>8))//matinee
+    _processHour.day++;
+    _processHour.day=_processHour.day % 6;
+    _processHour.end=_processHour.start+ _current.length;
+   // _after_break_hour=(_processHour.start>0) && (_processHour.start!=8) && (_solution.ProfTable()[curpindex].weeka[_processHour.day][_processHour.start-1]==-1);
+    _current.isForbidden=
+        (_processHour.day== _current.fday)
+        || (_matMapDT[_current.cindex][_current.mindex][_processHour.day]==1)//no 2 mat in same day
+        ||( _processHour.end>16) //evening
+        || ((_processHour.start<8)&&( _processHour.end>8))//morning
 
-       #if  OPTIMIZE_BRANCHING ==0
+#if  OPTIMIZE_BRANCHING
+        || (FmhtLength_b[_current.length][_processHour.day][_processHour.start] == false)
+        || (FmhtLength_b[_current.length][_processHour.day][_processHour.end - 1] == false)
+        || (_matProcessLevel[_current.mindex]._processHour.index < FmdtMat_b[_current.mindex][_processHour.day][_processHour.start])
+        || (_matProcessLevel[_current.mindex]._processHour.index < FmdtMat_e[_current.mindex][_processHour.day][_processHour.end - 1]) 
+        
+#else
+       ||( ((_current.length==4)||(_current.length==3)) &&(_processHour.start % 4!=0)    )           //for 2h/1.5h length shifts
+        ||( (_current.length==8) &&(_processHour.start % 8!=0) )                                     //.... 4h 4h
+        ||( (_processHour.start % 2!=0) && (_current.length!=3)    )                                 // begin with half hour
+        ||( (_processHour.day>3)&& (_processHour.start>=8) )                                                   //no course for friday & saturday evening
 
-        ||( ((curlength==4)||(curlength==3)) &&(PrHour % 4!=0)    )           //pour les shifts de 2h ou 1.5h
-        ||( (curlength==8) &&(PrHour % 8!=0) )                            //.... de 4h
-        ||( (PrHour % 2!=0) && (curlength!=3)    )                          // begin with half hour
-        ||( (PrDay>3)&& (PrHour>=8) )                                   //no course for ven & sam soir
-         //math-physique
-        ||(  (curmindex==0) && (FMatProcessMap[0].iprocess<FMatProcessMap[0].level) && (PrEndhour>8)     )
-        || ( ((curmindex==0)||(curmindex==13)||(curmindex==2)) && (PrEndhour>12)     )
-        //prof
-        ||(    (curpindex==0)
-               && (FMatProcessMap[curmindex].iprocess<FMatProcessMap[curmindex].level)
-               && (PrHour>=8)
-              // && (PrDay==0)
-           )
-         ||(    (curpindex==55)
-               && (FMatProcessMap[curmindex].iprocess<FMatProcessMap[curmindex].level)
-               && (PrEndhour>12)
-              // && (PrDay==0)
-           )
-         ||(    (curpindex==33)
-               && (FMatProcessMap[curmindex].iprocess<FMatProcessMap[curmindex].level)
-               && (PrHour>=8)
-              // && (PrDay==0)
-           )
-         ||(    (curpindex==49)
-               && (FMatProcessMap[curmindex].iprocess<FMatProcessMap[curmindex].level)
-               && (PrHour>=8)
-              // && (PrDay==0)
-           )
-        ||(    (curpindex==16)
-               && (FMatProcessMap[curmindex].iprocess<FMatProcessMap[curmindex].level)
-               && (PrHour<8)
-              // && (PrDay==0)
-           )
-         ||(    (curpindex==45)
-               && (FMatProcessMap[curmindex].iprocess<FMatProcessMap[curmindex].level)
-               && (PrHour>=8)
-             //  && (PrDay==0)
-           )
-        ||(    (curpindex==67)
-               && (FMatProcessMap[curmindex].iprocess<FMatProcessMap[curmindex].level)
-               && (PrHour>=8)
-             //  && (PrDay==0)
-           )
-       /* */
-        //arabe-francais-anglais
-      /*  ||(  (curmindex==3) && (FMatProcessMap[3].iprocess<FMatProcessMap[3].level) && (PrEndhour>8) && (PrDay==0)    )
-        ||(  (curmindex==4) && (FMatProcessMap[4].iprocess<FMatProcessMap[4].level) && (PrEndhour>8) && (PrDay==1)    )
-        ||(  (curmindex==5) && (FMatProcessMap[5].iprocess<FMatProcessMap[5].level) && (PrEndhour>8) && (PrDay==0)    )
-
-        //education nat/religion ap 10h
-         || ( (FMatProcessMap[8].iprocess<FMatProcessMap[8].level)  && (((curmindex ==8)) && (PrEndhour<=8) && (PrDay==1) )   )
-         || ( (FMatProcessMap[9].iprocess<FMatProcessMap[9].level)  && (((curmindex ==9)) && (PrEndhour<=8))  && (PrDay==2) )
-         || ( (FMatProcessMap[10].iprocess<FMatProcessMap[10].level)  && (((curmindex ==10)) && (PrHour<4))   )
-
-        //histoire-geo apres 10h
-        || ( (curmindex==7) && (FMatProcessMap[7].iprocess<FMatProcessMap[7].level) && (PrHour<4)     )
-        || ( (curmindex==7) && (FMatProcessMap[7].iprocess<FMatProcessMap[7].level)&& (PrEndhour<=8) && (PrDay<=1)     )
-*/
+#endif      
+      /*                                                                                  
         //sport
-        || ( (curmindex==6) && (PrEndhour>14)    )
-        //test
-        // || ( (iprocess<highlevel_process_count) &&  (curpindex==33) && (PrDay<=2)&& (PrEndhour>8)        )
-
-        #else
-        ||(FmhtLength_b[curlength][PrDay][PrHour]==false)
-        ||(FmhtLength_e[curlength][PrDay][PrEndhour-1]==false)
-        ||(FMatProcessMap[curmindex].iprocess<FmdtMat_b[curmindex][PrDay][PrHour])
-        ||(FMatProcessMap[curmindex].iprocess<FmdtMat_e[curmindex][PrDay][PrEndhour-1])
-
-        #endif
-         // heure de  pointe
-        || ( (iprocess<lowlevel_process_count)&& (curlength==2) &&(PrEndhour>14)  )
+        || ( (_current.mindex==6) && (_processHour.end>14)    )
+       
+         // busy hours
+        || ( (_processHour.index<_processStats.lowlevel_count)&& (_current.length==2) &&(_processHour.end>14)  )
         //heure creuse
-      //  || ( (iprocess<lowlevel_process_count)&& ((PrHour>0) && (solution().ClasseTable()[curcindex].weeka[PrDay][PrHour-1]==-1))  )
-      //  || ( (prof_hc>10)&& after_hc  )
+        || ( (_processHour.index<_processStats.lowlevel_count)&& ((_processHour.start>0) && (_solution.ClasseTable()[_current.cindex].weeka[_processHour.day][_processHour.start-1]==-1))  )
+        || ( (_profs_bh.count>10)&& _after_break_hour  )
+        */
+      
+
         ;
 
 }
