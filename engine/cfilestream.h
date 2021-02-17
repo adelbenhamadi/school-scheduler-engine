@@ -6,8 +6,8 @@
 
 typedef LONG fsize_t ;
 
-typedef enum {wrWrite,wrRead,wrWriteRead} wrMode;
-typedef enum {cmCreate,cmOpen} cmMode;
+enum wrMode{wrWrite,wrRead,wrWriteRead} ;
+enum cmMode{cmCreate,cmOpen} ;
 
 
 class CFileStream
@@ -16,8 +16,8 @@ class CFileStream
 public:
     CFileStream(const char* fn,cmMode fc=cmCreate,LONG shareMode=0);
     virtual ~CFileStream();
-    bool SaveToFile(const char* fn);
-    bool LoadFromFile(const char* fn);
+    bool save(const char* fn);
+    bool load(const char* fn);
     bool writeString(const char* s);
     char* readString(void);
     bool Save(void);
@@ -30,9 +30,9 @@ public:
     DWORD read(LPVOID buf,DWORD co);
     DWORD seek(LONG offset,DWORD origin);
 private:
-    HANDLE handle;
-    char* fileName;
-    fsize_t position;
+    HANDLE _handle;
+    const char* _fileName;
+    fsize_t _position;
 
 
 protected:
