@@ -9,16 +9,16 @@
 struct I_Engine_Intf
 {
 
-  virtual bool  load(CEngineConfig cfg)=0;
   virtual bool  release()=0;
   virtual CEnginePlugin& pluginInfo()=0;
   virtual ScheduleSolution& solution() = 0;
   virtual CEngineConfig& config() = 0;
   virtual void execute(bool _first ,bool _new)=0;
-  virtual bool  verifySolution(bool b)=0;
+  virtual bool  checkSolution(const bool b)=0;
  
+  virtual bool  load(CEngineConfig cfg)=0;
   virtual bool  save(const char* fn)=0;
-  virtual int shiftsCount()=0;
+ 
 };
 
 /*

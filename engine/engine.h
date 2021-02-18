@@ -30,11 +30,10 @@ public:
     void execute(bool _first ,bool _new);
 
     bool release();
-    bool verifySolution(bool b);
+    bool checkSolution(const bool b);
    
     bool load(CEngineConfig cfg);
     bool save(const char* fn);
-    int shiftsCount();
 
     CEnginePlugin &   pluginInfo() { return _pluginInfo; }
     ScheduleSolution & solution() { return _solution; }
