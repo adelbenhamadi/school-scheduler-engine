@@ -484,29 +484,33 @@ int ScheduleSolution::getShiftsCount(const int AIndex,const EScheduleMode emMode
 
 }
 
-bool    ScheduleSolution::getOptimizeValue(int *hp,int*hc,int*cp,int*cc)
+OptimizeInfo ScheduleSolution::getOptimizeInfo(const EScheduleMode emMode)
 {
-
-    int e;
-    *hp=0;
-    *hc=0;
-    *cp=0;
-    *cc=0;
-
-    for(e=0 ; e< _dClasses.size(); e++)
+    int oi = 0 , ci = 0;
+  
+    switch (emMode)
     {
-        *hc=*hc+getOrphinedShift(e,emClasse);
-        *cc=*cc+getCompactIdx(e,emClasse);
+    case emClasse:
+         for (int e = 0; e < _stats.classes; e++)
+            {
+                oi +=  getOrphinedShift(e, emClasse);
+                ci +=  getCompactIdx(e, emClasse);
+            }
+        break;
+    case emProf:
+         for (int e = 0; e < _stats.profs; e++)
+            {
+                 oi +=  getOrphinedShift(e, emProf);
+                 ci +=  getCompactIdx(e, emProf);
+            }
+         break;
+    default:
+        oi = 0;
+        ci = 0;
+        break;
     }
-
-    for(e=0 ; e< _stats.profs; e++)
-    {
-        *hp=*hp+getOrphinedShift(e,emProf);
-        *cp=*cp+getCompactIdx(e,emProf);
-    }
-
-    return true;
-
+   
+    return OptimizeInfo(oi,ci);
 }
 
 bool ScheduleSolution::parkShift(const int Sindex,bool ABool)
@@ -557,9 +561,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
     bool  checkA,checkB,result0,result1,result2;
     char s[254] = "";
 
-    //just for testing: emulate an erronous Shift:
-    //_dShifts[0].day=1;
-    //  FCroomTable[0].weekb[0,0]=111;
+   
     result0=false;
 
     Se=&(_dShifts[Sindex]);
@@ -610,7 +612,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
         sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
     }
     else {
-        sprintf_s(s, "\n\t->[%d]  checking stage1 .. [failure] \n checkA:%d,checkB:%d\n", Sindex,checkA,checkB);
+        sprintf_s(s, "\n\t->[%d]  checking stage1 .. [failure] checkA:%d,checkB:%d\n", Sindex,checkA,checkB);
       
     }
     Console::Write(s);
@@ -634,7 +636,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
         sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
     }
     else {
-        sprintf_s(s, "\n\t->[%d]  checking stage2 .. [failure] \n checkA:%d,checkB:%d\n", Sindex, checkA, checkB);
+        sprintf_s(s, "\n\t->[%d]  checking stage2 .. [failure] checkA:%d,checkB:%d\n", Sindex, checkA, checkB);
     }
     Console::Write(s);
 
@@ -688,7 +690,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
 
 bool   ScheduleSolution::verifyProcessedShifts(bool b)
 {
-    bool result=true;
+
 //int pass=0;
     int Sindex=0;
 
@@ -696,18 +698,12 @@ bool   ScheduleSolution::verifyProcessedShifts(bool b)
     {
 
         if  (!CheckAllDT(Sindex))
-            result=false;
+            return false;
         Sindex++;
     }//while
 
-    char s[254]="";
-    Console::WriteLine("");
-    if (result)
-        Console::WriteLine(  "\t->verifying processed Shifts -> [ok]");
-    else
-        Console::WriteEx("\t->verifying processed Shifts -> [failure]\n",ColorRed);
 
-    return result;
+    return true;
 }
 
 

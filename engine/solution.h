@@ -1,10 +1,9 @@
 #ifndef _EMSOLUTION_H
 #define _EMSOLUTION_H
 #include  <windows.h>
-#include "classes.h"
 #include <vector>
 
-
+#include "classes.h"
 #include "cfilestream.h"
 
 class ScheduleSolution
@@ -46,8 +45,8 @@ public:
        int          getOrphinedShift(const int AIndex,const EScheduleMode emMode) ;
        int          getCompactIdx(const int AIndex,const EScheduleMode emMode);
        int          getShiftsCount(const int AIndex,const EScheduleMode emMode);
-
-       bool         getOptimizeValue(int *hp,int*hc,int*cp,int*cc);
+       OptimizeInfo         getOptimizeInfo(const EScheduleMode emMode);
+      
        bool         CanBeByGroup(const int Se1,const int Se2,const int Aday,const int Ahour);
        EFillMode  getShiftFillMode(const int Se);
        bool         setLink(const int s1,const int s2,ELinkType Alink);
