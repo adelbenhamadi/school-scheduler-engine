@@ -19,12 +19,12 @@ public:
             int shifts, crooms, classes, profs, mats;
         };
         Stats _stats;
-        ScheduleConfig      emConfig;
+        ScheduleConfig      _scheduleConfig;
         std::vector<CClasse>        _dClasses;
-        CProf*          FProfTable;
-        CCroom*         FCroomTable;
+        CProf*          _dProfs;
+        CCroom*         _dCRooms;
         std::vector<CShift>        _dShifts;
-        CMat*           FMatTable;
+        CMat*           _dMats;
 
         EOptimizeOptions _classesOptimizeOptions ;
         EOptimizeOptions _profOptimizeOptions ;
@@ -39,7 +39,7 @@ public:
         int readData(CFileStream* stream,WORD phase);
         bool writeData(CFileStream* stream,WORD phase);
 public:
-       bool         verifyProcessedShifts(bool b);
+       bool         checkProcessedShifts();
        bool         clearShift(const int se,bool abool);
        int          getOrphinedShiftByDay(const int AIndex,const int ADay,const EScheduleMode emMode);
        int          getOrphinedShift(const int AIndex,const EScheduleMode emMode) ;
