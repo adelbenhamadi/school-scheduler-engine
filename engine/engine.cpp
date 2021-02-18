@@ -68,12 +68,9 @@ bool ScheduleEngine::save(const char* fn){
 
 }
 
-int ScheduleEngine::shiftsCount(){
-    return _solution.stats().shifts;
 
-}
-bool  ScheduleEngine::verifySolution(bool b){
-   return _solution.verifyProcessedShifts(b);
+bool  ScheduleEngine::checkSolution(const bool b){
+   return _solution.checkProcessedShifts();
 }
 
 void ScheduleEngine::execute(bool _first ,bool _new)
