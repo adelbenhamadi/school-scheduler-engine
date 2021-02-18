@@ -606,7 +606,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
 
 
 
-    //initialize cursor pos
+#if DEBUG_VERBOSE   
     Console::SetCursorPosition(3,Console::GetCursorY());
     if (result0) {
         sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
@@ -616,7 +616,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
       
     }
     Console::Write(s);
-
+#endif
     result1=result0;
     //check croom table
     checkA=checkDT(Sindex,&(Sa->weeka))  ;
@@ -629,8 +629,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
            (checkA && checkB)  ;
 
 
-    // sleep(10);
-    //initialize cursor pos
+#if DEBUG_VERBOSE
     Console::SetCursorPosition(3,Console::GetCursorY());
     if (result0) {
         sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
@@ -639,7 +638,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
         sprintf_s(s, "\n\t->[%d]  checking stage2 .. [failure] checkA:%d,checkB:%d\n", Sindex, checkA, checkB);
     }
     Console::Write(s);
-
+#endif
     result2=result0;
 
     //check prof table
@@ -653,8 +652,7 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
            (checkA && checkB);
 
 
-    // sleep(10);
-    //initialize cursor pos
+#if DEBUG_VERBOSE
     Console::SetCursorPosition(3,Console::GetCursorY());
     if (result0) {
         sprintf_s(s, "\t->[%d]  .. [ok]", Sindex);
@@ -663,45 +661,41 @@ bool  ScheduleSolution::CheckAllDT(const int Sindex)
         sprintf_s(s, "\n\t->[%d]  checking stage3 .. [failure] \n checkA:%d,checkB:%d\n", Sindex, checkA, checkB);
     }
     Console::Write(s);
-
+#endif
     //check grouping table
-    /*checkA=checkDT(Sindex,&(Pr->weeka))  ;
+    checkA=checkDT(Sindex,&(Pr->weeka))  ;
     checkB=checkDT(Sindex,&(Pr->weekb))  ;
 
-    result=(Se->_current.every2weeks && checkA)
+    result0=(Se->every2weeks && checkA)
            ||
-           (Se->_current.every2weeks && checkB)
+           (Se->every2weeks && checkB)
            ||
            (checkA && checkB);
 
 
-    // sleep(10);
-    //initialize cursor pos
+#if DEBUG_VERBOSE  
     Console::SetCursorPosition(3,Console::GetCursorY());
     if (result)
         sprintf_s(s,"   ->[%d]  .. [ok]",Sindex);
     else
-        sprintf_s(s,"\n   ->[%d]  checking stage3 .. [failure]\n",Sindex);
+        sprintf_s(s,"\n   ->[%d]  checking stage4 .. [failure]\n",Sindex);
     Console::Write(s);
     */
     return (result1 && result2 && result0);
-
+#endif
 }
 
-bool   ScheduleSolution::verifyProcessedShifts(bool b)
+bool   ScheduleSolution::checkProcessedShifts()
 {
 
-//int pass=0;
-    int Sindex=0;
-
-    while (Sindex<_dShifts.size())
+    int si=0;
+    while (si<_dShifts.size())
     {
 
-        if  (!CheckAllDT(Sindex))
+        if  (!CheckAllDT(si))
             return false;
-        Sindex++;
-    }//while
-
+        si++;
+    }
 
     return true;
 }

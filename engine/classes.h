@@ -3,6 +3,8 @@
 #ifndef CLASSES_H_INCLUDED
 #define CLASSES_H_INCLUDED
 
+#define DEBUG_VERBOSE 0
+
 const unsigned int MAX_CLASSE_COUNT = 1000;
 const unsigned int MAX_MAT_COUNT = 64;
 const unsigned int MAX_SHIFT_COUNT = 100000;
