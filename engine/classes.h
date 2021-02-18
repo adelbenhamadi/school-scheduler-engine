@@ -38,6 +38,12 @@ typedef  EGlobalOptimizeOption EGlobalOptimizeOptions[EGlobalOptimizeOption::_go
 enum EScheduleMode{ emCroom, emClasse, emProf, emMat };
 enum ELinkType{ ltClasse, ltCroom, ltProf, ltGroup, ltClear };
 
+struct OptimizeInfo {
+	int orphanedIdx;
+	int compactIdx;
+	OptimizeInfo(): orphanedIdx(0),compactIdx(0){}
+	OptimizeInfo(const int oi, const int ci) : orphanedIdx(oi), compactIdx(ci) {}
+};
 struct ScheduleConfig {
 	char magic[255];
 	int magic_len, version_maj, version_min;
