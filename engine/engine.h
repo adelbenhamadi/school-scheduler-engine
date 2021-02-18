@@ -31,7 +31,7 @@ public:
 
     bool release();
     bool verifySolution(bool b);
-    bool getOptimizeValue(int *hp,int*hc,int*cp,int*cc);
+   
     bool load(CEngineConfig cfg);
     bool save(const char* fn);
     int shiftsCount();

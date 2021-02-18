@@ -16,7 +16,7 @@ struct I_Engine_Intf
   virtual CEngineConfig& config() = 0;
   virtual void execute(bool _first ,bool _new)=0;
   virtual bool  verifySolution(bool b)=0;
-  virtual bool  getOptimizeValue(int *hp,int*hc,int*cp,int*cc)=0;
+ 
   virtual bool  save(const char* fn)=0;
   virtual int shiftsCount()=0;
 };

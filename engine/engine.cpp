@@ -75,9 +75,6 @@ int ScheduleEngine::shiftsCount(){
 bool  ScheduleEngine::verifySolution(bool b){
    return _solution.verifyProcessedShifts(b);
 }
-bool  ScheduleEngine::getOptimizeValue(int *hp,int*hc,int*cp,int*cc){
-   return _solution.getOptimizeValue(hp,hc,cp,cc);
-}
 
 void ScheduleEngine::execute(bool _first ,bool _new)
 {
@@ -89,12 +86,7 @@ void ScheduleEngine::execute(bool _first ,bool _new)
 
         stime=ptime;
     }
-    #if  OPTIMIZE_BRANCHING == 1
-        printf("Optimize branching .....[enabled]\n");
-    #else
-        printf("Optimize branching .....[disabled]\n");
-    #endif
-
+   
     
     _processStats.highlevel_count=((int)_engineConfig.hltx*_solution.stats().shifts / 100);
     _processStats.lowlevel_count=((int) _engineConfig.lltx*_solution.stats().shifts / 100);
@@ -550,7 +542,7 @@ bool ScheduleEngine::startSearching()
         #if SLOW_PRINTING
               if (_processStats.tries_count % 10==0){
         #endif
-                //_solution.getOptimizeValue(&valp,&valc,&osp,&osc);
+                //_solution.getOptimizeInfo(&valp,&valc,&osp,&osc);
                 diff_time=difftime(time(0),ptime);
                 _profs_bh.high=(_profs_bh.high>_profs_bh.count)?_profs_bh.high:_profs_bh.count;
                 _classes_bh.high=(_classes_bh.high>_classes_bh.count)?_classes_bh.high:_classes_bh.count;
