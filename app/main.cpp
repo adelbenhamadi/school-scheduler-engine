@@ -145,18 +145,7 @@ int main(int argc, char* argv[], char* envp[])
 
     
     int ecount = 0;
-    /*
-    printf("\nPress any key to cancel ");
-    while (!Console::KeyDown() && ecount < 5) {
-        Console::Write(".");
-        Sleep(500);
-
-        ecount++;
-    };
-
-    if (ecount < 5)  exit(0);
-    Beep(750, 175);
-    */
+    
     Console::Clear();
     Console::WriteEx("Scheduler Engine \n", ColorBlack, ColorCyan);
     printf("(c) 2012-2021 Adel BEN HAMADI <benhamadi.adel@gmail.com>\n");
@@ -200,10 +189,10 @@ int main(int argc, char* argv[], char* envp[])
     {
 
         if (engine.load(engine_cfg))
-            printf("LOAD CONFIG FILE:     %s\n", engine.config().configfile);
+            printf("LOAD CONFIG FILE:      %s\n", engine.config().configfile);
         else
         {
-            printf("LOAD CONFIG FILE:     %s..[failed]\n", engine.config().configfile);
+            printf("LOAD CONFIG FILE:      %s..[failed]\n", engine.config().configfile);
             perror("\nUnable to load config file");
             exit(-1);
         }
@@ -214,11 +203,12 @@ int main(int argc, char* argv[], char* envp[])
     }
 #endif
 
-    printf("ENGINE:          v%d\n", engine.pluginInfo().version_maj);
+    printf("ENGINE:                v%d\n", engine.pluginInfo().version_maj);
+    printf("Optimize branching     ");
 #if  OPTIMIZE_BRANCHING == 1
-    printf("Optimize branching .....[enabled]\n");
-#else
-    printf("Optimize branching .....[disabled]\n");
+    Console::WriteEx("enabled\n", ColorRed);
+#else  
+    Console::WriteEx("disabled\n", ColorSilver);
 #endif
     printf("-----------------------------------------------------------");
 
@@ -227,14 +217,11 @@ int main(int argc, char* argv[], char* envp[])
 
 
     const int multi = 15;
-    //OptimizeInfo old_classeOI(10 * multi,10 * multi);
-    //OptimizeInfo old_profOI(10 * multi, 10 * multi);
     double val = 0.0;
-    double oldval = 10 * multi + 10 * multi;// (double)(old_profOI.compactIdx + old_profOI.orphanedIdx);
-   
+    double oldval =(double) 10.0 * multi + 10.0 * multi;
 
-    double a_percent = 0;
-    double max_percent = 0;
+    double a_percent = 0.0;
+    double max_percent = 0.0;
 
     ecount = 1;
     int sol = 1;
@@ -244,7 +231,7 @@ int main(int argc, char* argv[], char* envp[])
         Console::SetCursorPosition(4, Console::GetCursorY() + 1);
         Console::WriteLine("");
         Console::WriteLine("---------------------");
-        printf(" Solution:%d  P:%.2f%%\n", sol, max_percent);
+        printf("Solution:%d  P:%.2f%%\n", sol, max_percent);
 
         Console::WriteLine("---------------------");
         engine.execute(sol == 1,/*(sol_retenu=0)or(sol-sol_retenu > 5)*/sol % 3 == 1);
@@ -256,31 +243,31 @@ int main(int argc, char* argv[], char* envp[])
         auto classeOI = engine.solution().getOptimizeInfo(emClasse);
         auto profOI = engine.solution().getOptimizeInfo(emProf);
 
-        sprintf_s(str1, "\t->Solution found:%d %d/%d/%d/%d\n", sol,
+        sprintf_s(str1, "\t->Solution found: %d/%d/%d/%d\n", 
             classeOI.orphanedIdx,classeOI.compactIdx,
             profOI.orphanedIdx,profOI.compactIdx
             );
         Console::Write(str1);
 
-        if (engine.verifySolution(false) == false) {
+        if (engine.checkSolution(false) == false) {
             notaccepted++;
-            Console::WriteEx("\t->verifying processed Shifts -> [failure]\n", ColorRed);
+            Console::WriteEx("\t->Checking:   [failure]\n", ColorRed);
             Console::WriteEx("\t->Rejected!\n", ColorRed);
             Console::WriteLine("");
                
         }
         else
         {
-            Console::WriteLine("\t->verifying processed Shifts -> [ok]\n");
+            Console::WriteLine("\t->Checking:   [ok]\n");
             sprintf_s(str1, "\t->Accepted[%d/%d]\n", sol - notaccepted, sol);
             Console::WriteEx(str1, ColorGreen);
 
 
-            val =(double) ( profOI.compactIdx + profOI.orphanedIdx );
-            a_percent = (double)(100 * (1 - (val / engine.shiftsCount())));
+            val =(double) profOI.compactIdx + (double) profOI.orphanedIdx ;
+            a_percent = (double)(100 * (1 - (val / engine.solution().stats().shifts)));
             printf("\t->Optimized at %.2f%% P:%d/%d C:%d/%d\n", a_percent, profOI.compactIdx, profOI.orphanedIdx, classeOI.compactIdx, classeOI.orphanedIdx);
 
-            if (val < oldval) {
+            if (a_percent > max_percent) {
                 sol_retenu = sol;
                 max_percent = a_percent;
                 oldval = val;
