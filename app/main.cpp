@@ -215,20 +215,23 @@ int main(int argc, char* argv[], char* envp[])
 #endif
 
     printf("ENGINE:          v%d\n", engine.pluginInfo().version_maj);
+#if  OPTIMIZE_BRANCHING == 1
+    printf("Optimize branching .....[enabled]\n");
+#else
+    printf("Optimize branching .....[disabled]\n");
+#endif
     printf("-----------------------------------------------------------");
 
     //start searching
     Console::SetCursorPosition(3, Console::GetCursorY());
 
 
-    int valp, valc, osp, osc;
-    int multi = 15;
-    int oldvalc = 10 * multi;
-    int oldvalp = 10 * multi;
-    int oldosp = 10 * multi;
-    int oldosc = 10 * multi;
-    double val;
-    double oldval = oldvalp + oldosp + oldvalc + oldosc;
+    const int multi = 15;
+    //OptimizeInfo old_classeOI(10 * multi,10 * multi);
+    //OptimizeInfo old_profOI(10 * multi, 10 * multi);
+    double val = 0.0;
+    double oldval = 10 * multi + 10 * multi;// (double)(old_profOI.compactIdx + old_profOI.orphanedIdx);
+   
 
     double a_percent = 0;
     double max_percent = 0;
@@ -248,40 +251,44 @@ int main(int argc, char* argv[], char* envp[])
     
         Console::WriteLine("");
         //engine.rebuildSolution();
-        engine.getOptimizeValue(&valp, &valc, &osp, &osc);
+        //engine.getOptimieValue(&valp, &valc, &osp, &osc);
 
-        sprintf_s(str1, "\t->solution found:%d %d/%d/%d/%d\n", sol, valp, valc, osp, osc);
+        auto classeOI = engine.solution().getOptimizeInfo(emClasse);
+        auto profOI = engine.solution().getOptimizeInfo(emProf);
+
+        sprintf_s(str1, "\t->Solution found:%d %d/%d/%d/%d\n", sol,
+            classeOI.orphanedIdx,classeOI.compactIdx,
+            profOI.orphanedIdx,profOI.compactIdx
+            );
         Console::Write(str1);
 
         if (engine.verifySolution(false) == false) {
             notaccepted++;
-            Console::WriteEx("\t->solution not accepted!\n", ColorRed);
+            Console::WriteEx("\t->verifying processed Shifts -> [failure]\n", ColorRed);
+            Console::WriteEx("\t->Rejected!\n", ColorRed);
+            Console::WriteLine("");
+               
         }
         else
         {
-
-            sprintf_s(str1, "\t->solution accepted[%d/%d]\n", sol - notaccepted, sol);
+            Console::WriteLine("\t->verifying processed Shifts -> [ok]\n");
+            sprintf_s(str1, "\t->Accepted[%d/%d]\n", sol - notaccepted, sol);
             Console::WriteEx(str1, ColorGreen);
 
 
-            val = valp + osp/*+valc+osc*/;
+            val =(double) ( profOI.compactIdx + profOI.orphanedIdx );
             a_percent = (double)(100 * (1 - (val / engine.shiftsCount())));
-            printf("\t->optimized at %.2f%% P:%d/%d C:%d/%d\n", a_percent, valp, osp, valc, osc);
+            printf("\t->Optimized at %.2f%% P:%d/%d C:%d/%d\n", a_percent, profOI.compactIdx, profOI.orphanedIdx, classeOI.compactIdx, classeOI.orphanedIdx);
 
             if (val < oldval) {
                 sol_retenu = sol;
                 max_percent = a_percent;
                 oldval = val;
-                oldvalp = valp;
-                oldvalc = valc;
-                oldosp = osp;
-                oldosc = osc;
-                printf("\t->solution autosaved P:%d/%d C:%d/%d\n", valp, osp, valc, osc);
-
 
                 getTimeStr(str2);
-                sprintf_s(str1, "sol-v%d-%d-%d-%s.gedt", engine.pluginInfo().version_maj, valp, valc, str2);
+                sprintf_s(str1, "sol-v%d-%s.gedt", engine.pluginInfo().version_maj,  str2);
                 engine.save(str1);
+                printf("\t->Autosaved [%s]\n", str1);
                 MessageBeep(0xFFFFFFFF);// MB_ICONASTERISK MB_ICONEXCLAMATION MB_ICONOK
                 if (val == 0)
                     break;
