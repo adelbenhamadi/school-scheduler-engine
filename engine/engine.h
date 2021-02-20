@@ -16,8 +16,9 @@
 
 #define ENGINE_ERROR_LOADING 500L
 
-#define OPTIMIZE_BRANCHING 0
-#define SLOW_PRINTING      1
+#define OPTIMIZE_BRANCHING  0
+#define USE_BACKTRACKING    0
+#define SLOW_PRINTING       1
 
 const char SPEED_SYM[4]= {'|','/','-','\\'};
 
@@ -49,7 +50,7 @@ protected:
     void doQuickSort(const bool ascendant,const int p,const int r);
     int doPartition(const int p,const int r);
     unsigned long processesCheckSum();
-    bool doCheck();
+    bool checkProcesses();
     void swapValues(const int v,const int w);
     bool moveIndex(int i1,int i2);
     int checkEmptyDT();
@@ -58,7 +59,8 @@ protected:
     bool fillCroom(bool ABool=true);
 
     void initialize(const bool AReset);
-    bool process();
+    bool process(const int iprocess);
+    void retry();
     bool startSearching();
     void doFillConstraintMap();
    
@@ -85,31 +87,31 @@ private:
     };
     std::vector<ProcessLevel> _matProcessLevel;
   
-    unsigned long FProcessArrayChecksum;
+    unsigned long _processChecksum;
   
    
     std::vector <int> _dProcesses;
-    int _processesCount;
+
 
     CBitDayTable * ProfBitDT,*CroomBitDT,*ClasseBitDT;
    
    
     struct ProcessingInfo {
-        int cindex /*classe*/, mindex /*mat*/, pindex /*professor*/, sindex /*shift*/, length, fday;
+        int sindex,fday;
         int class_shift /*, croom_shift, prof_shift*/;
         bool canBeGrouped, every2w;
         DWORD bitset;
         EFillMode fillMode;
         bool isForbidden;
-
-        ProcessingInfo() : cindex(-1), mindex(-1), pindex(-1), sindex(-1), length(0), fday(-1),
+        CShift* pShift;
+        ProcessingInfo() : pShift(NULL),  sindex(-1), fday(-1),
             class_shift(-1), canBeGrouped(false), every2w(false),
             bitset(0), fillMode(EFillMode::foNoWhere), isForbidden(true)
         {};
     };
     ProcessingInfo _current;
   
-    CShift* _currentShift;
+   
     struct ProcessingHour {
         int index /*index*/ ,croom,startDay, day, start /*hour*/, end /*hour*/;
         int groupWith;
@@ -133,10 +135,10 @@ private:
         bool running;
         double percent;
         int speed;
-        int  max_shifts, last_max_shifts, highlevel_count, lowlevel_count, tries_count, all_shifts, last_progession;
+        int  max_shifts, last_max_shifts, highlevel_count, lowlevel_count, tries_count,  last_progession;
 
         ProcessStats() :max_shifts(0), last_max_shifts(0), highlevel_count(0), lowlevel_count(0),
-            tries_count(0), all_shifts(0), last_progession(0), percent(0.0), speed(0), running(false) {}
+            tries_count(0), last_progession(0), percent(0.0), speed(0), running(false) {}
     };
     ProcessStats _processStats;
 

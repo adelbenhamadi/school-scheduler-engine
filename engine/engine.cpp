@@ -4,7 +4,7 @@
 #include "engine.h"
 #include "utils.h"
 
-
+#include <assert.h>
 
 ScheduleEngine::~ScheduleEngine()
 {
@@ -126,7 +126,6 @@ void ScheduleEngine::execute(bool _first ,bool _new)
 void ScheduleEngine::initProcesses()
 {
  
-    //_dProcesses = new int[_solution.stats().shifts];
     _dProcesses.clear();
     //int k=0;
     for (int j=0 ; j< _solution.stats().shifts; j++)
@@ -136,26 +135,24 @@ void ScheduleEngine::initProcesses()
         //_dProcesses[k]=j ;
         _dProcesses.push_back(j);
         //fix rank
-        _solution.ShiftTable()[j].rank=j;
-        //reset delat
-        _solution.ShiftTable()[j].delta=8-_solution.ShiftTable()[j].length;//(1+_solution.ShiftTable()[j]._current.every2weeks);
+        _solution.Shift(j)->rank=j;
+        //reset delta
+        _solution.Shift(j)->delta=8-_solution.Shift(j)->length;
       
     }
 
-    _processesCount= _dProcesses.size();
+   
 
 }
 
-bool ScheduleEngine::doCheck()
+bool ScheduleEngine::checkProcesses()
 {
 
-    for (int p=0 ; p<_processesCount; p++)
-        for (int j=0 ; j<_processesCount; j++)
+    for (int p=0 ; p< _dProcesses.size(); p++)
+        for (int j=0 ; j< _dProcesses.size(); j++)
             if ((j!=p)&&(_dProcesses[p]==_dProcesses[j]))
             {
-
-                Console::WriteEx("   ->check _dProcesses duplication error for index %d && %d =>%d!",ColorRed);
-                // Console::Pause("press p to continue","p");
+                printf("   ->checking _dProcesses: duplication error _dProcesses[%d]=_dProcesses[%d]=%d",p,j, _dProcesses[p]);
                 return false;
             }
     return true;
@@ -164,39 +161,39 @@ bool ScheduleEngine::doCheck()
 unsigned long ScheduleEngine::processesCheckSum()
 {
 
-    unsigned long sum = _adler32((unsigned char*)&(_dProcesses[0]),_processesCount);
+    unsigned long sum = _adler32((unsigned char*)&(_dProcesses[0]),_dProcesses.size());
     //sum =sum^0xFFFFFFFF;
     // printf("\n checksum=%ld\n\n",sum);
     return unsigned(sum);
 
 }
 
-bool ScheduleEngine::moveIndex(int i1,int i2)
+bool ScheduleEngine::moveIndex(int i1, int i2)
 {
-    int  pi1,tmpI2;
 
-    if ((i2>=i1)||(i1<1)||(i2<-1)||(i1>=_solution.stats().shifts)||(i2>=_solution.stats().shifts))
+    int& sc = _solution.stats().shifts;
+    if ((i2 >= i1) || (i1 < 1) || (i2 < -1) || (i1 >= sc) || (i2 >= sc))
         return false;
-    pi1=_dProcesses[i1];//save i1
-    ( _solution.ShiftTable()[pi1].delta)++;
-    tmpI2=i2;
+    int pi1 = _dProcesses[i1];//save i1
+    _solution.Shift(pi1)->delta++;
+    int tmpI2 = i2;
 
-    if (tmpI2==-1)
-        for (int j=0 ; j< i1; j++)
-            if ( _solution.ShiftTable()[pi1].delta> _solution.ShiftTable()[_dProcesses[j]].delta)
+    if (tmpI2 == -1)
+        for (int j = 0; j < i1; j++)
+            if (_solution.Shift(pi1)->delta > _solution.Shift(_dProcesses[j])->delta)
             {
-                tmpI2=j;
+                tmpI2 = j;
                 break;
             }
 
-
-    if (tmpI2<0)
-        return false;
     //translation
-    for (int i=i1; i> tmpI2; i--)
-        _dProcesses[i]=_dProcesses[i-1];
-    _dProcesses[tmpI2]=pi1; // fill i2 with i1
-    return true;
+    if (tmpI2 >= 0){     
+        for (int i = i1; i > tmpI2; i--)
+            _dProcesses[i] = _dProcesses[i - 1];
+        _dProcesses[tmpI2] = pi1; // fill i2 with i1
+        return true;
+    }
+    return false;
 }
 
 void ScheduleEngine::swapValues(const int v,const int w)
@@ -211,14 +208,14 @@ int ScheduleEngine::doPartition(const int p,const int r)
 {
 
     //random pivot or not!!
-    //int x=_dProcesses[rand() % _processesCount];
+    //int x=_dProcesses[rand() % _dProcesses.size()];
     int x=_dProcesses[r];
 
     int i=p-1;
 
     for(int j=p; j<r; j++)
     {
-        if( _solution.ShiftTable()[_dProcesses[j]].delta<= _solution.ShiftTable()[x].delta)
+        if( _solution.Shift(_dProcesses[j])->delta <= _solution.Shift(x)->delta)
         {
             i++;
             swapValues(i,j);
@@ -244,11 +241,11 @@ void ScheduleEngine::doQuickSort(const bool ascendant,const int p,const int r)
 void ScheduleEngine::doSort(const bool ascendant)
 {
 
-    doQuickSort(ascendant ,0,_processesCount-1);
+    doQuickSort(ascendant ,0,_dProcesses.size()-1);
 
 #if ENGINE_DEBUGMODE_LEVEL >0
     int i;
-    for (i=0; i<_processesCount; i++)
+    for (i=0; i<_dProcesses.size(); i++)
     {
         printf("%d   [%d]     rank=%d     length=%d   _current.every2weeks=%d  delta=%d\n",
                i,
@@ -269,11 +266,11 @@ void ScheduleEngine::doSort(const bool ascendant)
 void ScheduleEngine::doRandomize()
 {
   
-    for (int j=0 ; j<_processesCount; j++)
+    for (int j=0 ; j<_dProcesses.size(); j++)
     {
         srand(time(0));
-        swapValues(j,rand() % _processesCount);
-        // moveIndex(j,rand()% _processesCount);
+        swapValues(j,rand() % _dProcesses.size());
+        // moveIndex(j,rand()% _dProcesses.size());
         
     }
     //printf("\nnew checksum: %ul", processesCheckSum());
@@ -371,12 +368,12 @@ void ScheduleEngine::initialize(const bool AReset)
         _processStats.percent=0;
 
         initProcesses();
-        if (doCheck() == false) {
+        if (checkProcesses() == false) {
             perror("Engine initialize error: bad check!");
         }
         //  if (goRandomizeShifts in _solution.GlobalOptions)
         doRandomize();
-        FProcessArrayChecksum=processesCheckSum();
+        _processChecksum=processesCheckSum();
         #if  OPTIMIZE_BRANCHING ==1
         doFillConstraintMap();
         #endif
@@ -405,7 +402,7 @@ void ScheduleEngine::initialize(const bool AReset)
         _profs_bh.high=0;
         _classes_bh.high=0;
         time(&ptime);
-        FProcessArrayChecksum=processesCheckSum();
+        _processChecksum=processesCheckSum();
     }
 
     for (int i=0 ; i< MAX_CROOMTYPE_COUNT; i++){
@@ -423,9 +420,9 @@ void ScheduleEngine::initialize(const bool AReset)
             for (int k=0 ; k<6; k++)
                 _matMapDT[i][j][k]=0;
 
-    if (_processesCount<_solution.stats().shifts)
+    if (_dProcesses.size()<_solution.stats().shifts)
     {
-        for (int i=0 ; i<_processesCount; i++)
+        for (int i=0 ; i<_dProcesses.size(); i++)
             _solution.clearShift(_dProcesses[i],true);
     }
     else
@@ -458,12 +455,12 @@ void ScheduleEngine::initialize(const bool AReset)
 
         for (int i=0; i<_solution.stats().shifts; i++)
         {
-           // CShift& sh = _solution.ShiftTable()[i];
-            _solution.ShiftTable()[i].day=-1;
-            _solution.ShiftTable()[i].hour=-1;
-            _solution.ShiftTable()[i].doAlternatewith=(int)foNoWhere;
-            _solution.ShiftTable()[i].dogroupwith=-1;
-            _solution.ShiftTable()[i].groupedwith=-1;
+            CShift* sh = _solution.Shift(i);
+            sh->day=-1;
+            sh->hour=-1;
+            sh->doAlternatewith=(int)foNoWhere;
+            sh->dogroupwith=-1;
+            sh->groupedwith=-1;
         }
 
     }
@@ -472,10 +469,11 @@ void ScheduleEngine::initialize(const bool AReset)
         _matProcessLevel[i].iprocess =0;
 
     }
-    _current.cindex=-1;
-    _current.mindex=-1;
-    _current.pindex=-1;
-
+    /*
+    _current.pShift->cindex=-1;
+    _current.pShift->mindex=-1;
+    _current.pShift->pindex=-1;
+    */
     _profs_bh.count=0;
     _classes_bh.count=0;
     _processHour.day=-1;
@@ -491,9 +489,6 @@ void ScheduleEngine::initialize(const bool AReset)
 bool ScheduleEngine::startSearching()
 {
 
-    SYSTEMTIME st0,st1;
-    int valp,valc,osp,osc;
-    double diff_time;
     _processStats.running=true;
     _processStats.tries_count=0;
     _processStats.last_progession=0;
@@ -501,7 +496,7 @@ bool ScheduleEngine::startSearching()
     _processHour.index=0;;
     _processHour.start=0;
     initStartDay();
-    while (_processHour.index<_processesCount)
+    while (_processHour.index<_dProcesses.size())
     {
 
 #if ENGINE_DEBUGMODE_LEVEL >1
@@ -511,7 +506,7 @@ bool ScheduleEngine::startSearching()
 #endif
 
 
-        if (process())
+        if (process(_processHour.index))
         {
             // NextShift
             _processHour.index++;
@@ -521,67 +516,21 @@ bool ScheduleEngine::startSearching()
         {
             //next process hour
             _processHour.start++;
-            if (_processHour.start>15) //reach last hour
+            //if reach last hour
+            if (_processHour.start>15) 
             {
+#if USE_BACKTRACKING
 
-                _processHour.start=0;
-                if (!moveIndex(_processHour.index, -1/*max(0,2*i-_dShifts.size())*/)) {
-                    printf("\n moveIndex failure: %d", _processHour.index);
-                }
-                initialize(false);
-                _processStats.last_max_shifts=_processStats.max_shifts;
-                _processStats.max_shifts=(_processHour.index>=_processStats.max_shifts)?_processHour.index:_processStats.max_shifts;
-                 if(_processStats.max_shifts>_processStats.last_max_shifts)
-                    _processStats.last_progession= _processStats.tries_count;
-                _processHour.index=0;
-
-                _processStats.tries_count++;
-        #if SLOW_PRINTING
-              if (_processStats.tries_count % 10==0){
-        #endif
-                //_solution.getOptimizeInfo(&valp,&valc,&osp,&osc);
-                diff_time=difftime(time(0),ptime);
-                _profs_bh.high=(_profs_bh.high>_profs_bh.count)?_profs_bh.high:_profs_bh.count;
-                _classes_bh.high=(_classes_bh.high>_classes_bh.count)?_classes_bh.high:_classes_bh.count;
-
-                //progression_tx=_processStats.percent;
-                _processStats.percent=(double)_processStats.max_shifts/(double)_solution.stats().shifts*100;
-
-                time_t2SystemTime(time(0)-ptime,&st0);
-                time_t2SystemTime(time(0)-stime,&st1);
-
-                _processStats.speed=(double)(_processStats.tries_count/diff_time);
-
-                Console::SetCursorPosition(3,cursor_y);
-                printf("%05d #%03d %c %02.3f%% %d/%d %d/s  BH (p:%d , c:%d)",
-                       _processStats.tries_count+1,
-                       _processStats.tries_count-_processStats.last_progession,
-                       SPEED_SYM[_processStats.tries_count % 4],
-
-                       _processStats.percent,
-                       _processStats.max_shifts,
-                       _processStats.all_shifts,
-                       _processStats.speed,
-                       _profs_bh.count,
-                       _classes_bh.count
-                      
-                       
-                      );
-                //printf(" crc%012ld", FProcessArrayChecksum);
-                printf(" %02d:%02d:%02d/%02d:%02d:%02d",
-                       st0.wHour, st0.wMinute,st0.wSecond,
-                       st1.wHour, st1.wMinute,st1.wSecond);
-
-            #if SLOW_PRINTING ==1
-                }
-            #endif
+#else
+                retry();
+#endif
             }//end  if (_processHour.start>15) 
         } //end not processed
 
 
     }  //while
-    _processStats.all_shifts=_processHour.index;
-    if(_processStats.all_shifts==_processesCount)
+   //if all processed
+    if(_processHour.index ==_dProcesses.size())
     {
         _solution.rebuildSolution();
         return true;
@@ -593,22 +542,18 @@ bool ScheduleEngine::startSearching()
   *
   * (documentation goes here)
   */
-bool ScheduleEngine::process()
+bool ScheduleEngine::process(const int iprocess)
 {
     bool result=false;
-    //_current.isForbidden=false;
+
     _processHour.groupWith=-1;
     _current.fillMode= EFillMode::foMixte;
-    _current.sindex=_dProcesses[_processHour.index];
-    _currentShift=&_solution.ShiftTable()[_current.sindex];
-    _current.length=_currentShift->length;
+    _current.sindex=_dProcesses[iprocess];
+  
+    _current.pShift = _solution.Shift(_current.sindex);
+    _current.fday= _solution.Prof(_current.pShift->pindex)->fday;
 
-    _current.mindex=_currentShift->mindex;
-    _current.cindex=_currentShift->cindex;
-    _current.pindex=_currentShift->pindex;
-    _current.fday=_solution.ProfTable()[_current.pindex].fday;
-
-    if (_current.pindex==-1)
+    if (_current.pShift->pindex==-1)
     {
         /* ShowMessage(format('FATAL ERROR: No "PROF" assigned for "Shift":%d "Mat":%d "Classe":%d',
         [_current.sindex,_current.mindex,curCindex])); */
@@ -622,14 +567,14 @@ bool ScheduleEngine::process()
     nextDay();
     _processHour.croom=0;
 
-    _current.bitset=(1 << _current.length)-1;
-    _current.bitset=_current.bitset << (32- _current.length-_processHour.start);
+    _current.bitset=(1 << _current.pShift->length)-1;
+    _current.bitset=_current.bitset << (32- _current.pShift->length-_processHour.start);
 
     while (_processHour.croom<_solution.stats().crooms)
     {
         if (
             (!_current.isForbidden)
-            &&(_currentShift->croom_type== _solution.CroomTable()[_processHour.croom].stype)
+            &&(_current.pShift->croom_type== _solution.CroomTable()[_processHour.croom].stype)
             &&(checkIsEmpty()!=-1)
         )
         {
@@ -667,6 +612,62 @@ bool ScheduleEngine::process()
 
 }
 
+void ScheduleEngine::retry() {
+    SYSTEMTIME st0, st1;
+    double diff_time;
+
+    _processHour.start = 0;
+    if (!moveIndex(_processHour.index, -1/*max(0,2*i-_dShifts.size())*/)) {
+        printf("\n moveIndex failure: %d", _processHour.index);
+    }
+    initialize(false);
+    _processStats.last_max_shifts = _processStats.max_shifts;
+    _processStats.max_shifts = (_processHour.index >= _processStats.max_shifts) ? _processHour.index : _processStats.max_shifts;
+    if (_processStats.max_shifts > _processStats.last_max_shifts)
+        _processStats.last_progession = _processStats.tries_count;
+    _processHour.index = 0;
+
+    _processStats.tries_count++;
+#if SLOW_PRINTING
+    if (_processStats.tries_count % 10 == 0) {
+#endif
+
+        diff_time = difftime(time(0), ptime);
+        _profs_bh.high = (_profs_bh.high > _profs_bh.count) ? _profs_bh.high : _profs_bh.count;
+        _classes_bh.high = (_classes_bh.high > _classes_bh.count) ? _classes_bh.high : _classes_bh.count;
+
+        //progression_tx=_processStats.percent;
+        _processStats.percent = (double)_processStats.max_shifts / (double)_solution.stats().shifts * 100;
+
+        time_t2SystemTime(time(0) - ptime, &st0);
+        time_t2SystemTime(time(0) - stime, &st1);
+
+        _processStats.speed = (double)(_processStats.tries_count / diff_time);
+
+        Console::SetCursorPosition(3, cursor_y);
+        printf("%05d #%03d %c %02.3f%% %d/%d %d/s  BH (p:%d , c:%d)",
+            _processStats.tries_count + 1,
+            _processStats.tries_count - _processStats.last_progession,
+            SPEED_SYM[_processStats.tries_count % 4],
+
+            _processStats.percent,
+            _processStats.max_shifts,
+            solution().stats().shifts,
+            _processStats.speed,
+            _profs_bh.count,
+            _classes_bh.count
+
+
+        );
+        //printf(" crc%012ld", _processChecksum);
+        printf(" %02d:%02d:%02d/%02d:%02d:%02d",
+            st0.wHour, st0.wMinute, st0.wSecond,
+            st1.wHour, st1.wMinute, st1.wSecond);
+
+#if SLOW_PRINTING ==1
+    }
+#endif
+}
 
 /** @brief (one liner)
   *
@@ -682,53 +683,53 @@ bool ScheduleEngine::fillCroom(bool abool)
           {
             _solution.setLink(_processHour.groupWith, _current.sindex,ltGroup);
           }
-          _currentShift->crindex=_processHour.croom;
-          _currentShift->hour=_processHour.start;
-          _currentShift->day=_processHour.day;
-          _currentShift->doAlternatewith=(int)(_current.fillMode);
+          _current.pShift->crindex=_processHour.croom;
+          _current.pShift->hour=_processHour.start;
+          _current.pShift->day=_processHour.day;
+          _current.pShift->doAlternatewith=(int)(_current.fillMode);
 
        // _solution.fillCroom(_current.sindex,_processHour.croom,_processHour.day,_processHour.start,_current.fillMode,_processHour.groupWith,true);
 
         if ((_current.fillMode==foMixte)||(_current.fillMode==foWeekA))
         {
             if (_processHour.groupWith==-1)
-                _mapClassesBitDT_A[_current.cindex][_processHour.day]|= _current.bitset;
+                _mapClassesBitDT_A[_current.pShift->cindex][_processHour.day]|= _current.bitset;
             _mapCroomBitDT_A[_processHour.croom][_processHour.day] |= _current.bitset;
-            _mapProfBitDT_A[_current.pindex][_processHour.day]|= _current.bitset;
+            _mapProfBitDT_A[_current.pShift->pindex][_processHour.day]|= _current.bitset;
 
         }
         if ((_current.fillMode==foMixte)||(_current.fillMode==foWeekB))
         {
             if (_processHour.groupWith==-1)
-                _mapClassesBitDT_B[_current.cindex][_processHour.day]|= _current.bitset;
+                _mapClassesBitDT_B[_current.pShift->cindex][_processHour.day]|= _current.bitset;
             _mapCroomBitDT_B[_processHour.croom][_processHour.day] |= _current.bitset;
-            _mapProfBitDT_B[_current.pindex][_processHour.day]|= _current.bitset;
+            _mapProfBitDT_B[_current.pShift->pindex][_processHour.day]|= _current.bitset;
         }
 
         //update _matMapDT
-        _matMapDT[_current.cindex][_current.mindex][_processHour.day]=1;
+        _matMapDT[_current.pShift->cindex][_current.pShift->mindex][_processHour.day]=1;
         /* if(_processHour.groupWith!=-1)
              _matMapDT[_current.cindex][_solution.ShiftTable()[_processHour.groupWith].mindex][_processHour.day]=1;*/
-        _matProcessLevel[_current.mindex].iprocess++;
-        FTypeCroomMapArray[_currentShift->croom_type][_processHour.day][_processHour.start]--;
+        _matProcessLevel[_current.pShift->mindex].iprocess++;
+        FTypeCroomMapArray[_current.pShift->croom_type][_processHour.day][_processHour.start]--;
        /* if (_after_break_hour==true)
             _profs_bh.count++;
         if((_profs_bh.count>0)&&(_processHour.end!=8)&&(_processHour.end!=16)&&(_solution.ProfTable()[curpindex].weeka[_processHour.day][_processHour.end]!=-1))
             _profs_bh.count--;
 */
         //dec delta
-        //_currentShift->delta--;
+        //_current.pShift->delta--;
         result=true;
     }
     else
     {
-        /* _currentShift->crindex=-1;
-         _currentShift->hour=-1;
-         _currentShift->day=-1;
-         _currentShift->doAlternatewith=(int)(foNoWhere);
-          if (_currentShift->groupedwith!=-1)
+        /* _current.pShift->crindex=-1;
+         _current.pShift->hour=-1;
+         _current.pShift->day=-1;
+         _current.pShift->doAlternatewith=(int)(foNoWhere);
+          if (_current.pShift->groupedwith!=-1)
          {
-            _solution.setLink(_current.sindex,_currentShift->groupedwith,ltClear);
+            _solution.setLink(_current.sindex,_current.pShift->groupedwith,ltClear);
 
          }
 
@@ -765,14 +766,14 @@ int ScheduleEngine::checkIsEmpty()
     int iresult=-1;
     _processHour.groupWith=-1;
 
-    _current.every2w= _currentShift->every2weeks;
+    _current.every2w= _current.pShift->every2weeks;
 
     _current.fillMode=foWeekA;
 
     CroomBitDT=&_mapCroomBitDT_A[_processHour.croom];
-    ProfBitDT=&_mapProfBitDT_A[_current.pindex];
-    ClasseBitDT=&_mapClassesBitDT_A[_current.cindex];
-    _current.class_shift = _solution.ClasseTable()[_current.cindex].weeka[_processHour.day][_processHour.start] ;//class  shift
+    ProfBitDT=&_mapProfBitDT_A[_current.pShift->pindex];
+    ClasseBitDT=&_mapClassesBitDT_A[_current.pShift->cindex];
+    _current.class_shift = _solution.ClasseTable()[_current.pShift->cindex].weeka[_processHour.day][_processHour.start] ;//class  shift
     iresult=checkEmptyDT();
     if (((iresult==-1)&& _current.every2w)|| ((iresult!=-1) && !_current.every2w))
     {
@@ -782,9 +783,9 @@ int ScheduleEngine::checkIsEmpty()
             _current.fillMode=foMixte;
 
         CroomBitDT=&_mapCroomBitDT_B[_processHour.croom];
-        ProfBitDT=&_mapProfBitDT_B[_current.pindex];
-        ClasseBitDT=&_mapClassesBitDT_B[_current.cindex];
-        _current.class_shift = _solution.ClasseTable()[_current.cindex].weekb[_processHour.day][_processHour.start] ;//class  shift
+        ProfBitDT=&_mapProfBitDT_B[_current.pShift->pindex];
+        ClasseBitDT=&_mapClassesBitDT_B[_current.pShift->cindex];
+        _current.class_shift = _solution.ClasseTable()[_current.pShift->cindex].weekb[_processHour.day][_processHour.start] ;//class  shift
         iresultA=iresult;
         iresult=checkEmptyDT();
         if (!_current.every2w && (iresult!=iresultA))
@@ -843,11 +844,11 @@ void ScheduleEngine::nextDay()
 {
     _processHour.day++;
     _processHour.day=_processHour.day % 6;
-    _processHour.end=_processHour.start+ _current.length;
+    _processHour.end=_processHour.start+ _current.pShift->length;
    // _after_break_hour=(_processHour.start>0) && (_processHour.start!=8) && (_solution.ProfTable()[curpindex].weeka[_processHour.day][_processHour.start-1]==-1);
     _current.isForbidden=
         (_processHour.day== _current.fday)
-        || (_matMapDT[_current.cindex][_current.mindex][_processHour.day]==1)//no 2 mat in same day
+        || (_matMapDT[_current.pShift->cindex][_current.pShift->mindex][_processHour.day]==1)//no 2 mat in same day
         ||( _processHour.end>16) //evening
         || ((_processHour.start<8)&&( _processHour.end>8))//morning
 
@@ -858,9 +859,9 @@ void ScheduleEngine::nextDay()
         || (_matProcessLevel[_current.mindex]._processHour.index < FmdtMat_e[_current.mindex][_processHour.day][_processHour.end - 1]) 
         
 #else
-       ||( ((_current.length==4)||(_current.length==3)) &&(_processHour.start % 4!=0)    )           //for 2h/1.5h length shifts
-        ||( (_current.length==8) &&(_processHour.start % 8!=0) )                                     //.... 4h 4h
-        ||( (_processHour.start % 2!=0) && (_current.length!=3)    )                                 // begin with half hour
+       ||( ((_current.pShift->length==4)||(_current.pShift->length==3)) &&(_processHour.start % 4!=0)    )           //for 2h/1.5h length shifts
+        ||( (_current.pShift->length==8) &&(_processHour.start % 8!=0) )                                     //.... 4h 4h
+        ||( (_processHour.start % 2!=0) && (_current.pShift->length!=3)    )                                 // begin with half hour
         ||( (_processHour.day>3)&& (_processHour.start>=8) )                                                   //no course for friday & saturday evening
 
 #endif      

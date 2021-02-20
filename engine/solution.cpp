@@ -183,14 +183,14 @@ int ScheduleSolution::readData(CFileStream* stream,WORD phase)
     switch (phase)
     {
     case 0:
-        _dCRooms=new CCroom[Le];
+        //_dCRooms.reserve(Le);
         //read struct
         stream->read(&sz ,sizeof(sz));
         CCroom sa;
         for(i=0; i<Le; i++)
         {
             stream->read(&sa,sz);
-            _dCRooms[i]=sa;
+            _dCRooms.emplace_back(sa);
 
             //read magic separateur
             stream->read(s,2);
@@ -230,14 +230,14 @@ int ScheduleSolution::readData(CFileStream* stream,WORD phase)
         break;
 
     case 3:
-        _dProfs=new CProf[Le];
+        //_dProfs.reserve(Le);
         //read struct
         stream->read(&sz ,sizeof(sz));
         CProf pr;
         for(i=0; i<Le; i++)
         {
             stream->read(&pr,sz);
-            _dProfs[i]=pr;       
+            _dProfs.emplace_back(pr);
 
             //read magic separateur
             stream->read(s,2);
@@ -246,14 +246,14 @@ int ScheduleSolution::readData(CFileStream* stream,WORD phase)
         break;
 
     case 4:
-        _dMats=new CMat[Le];
+        //_dMats.reserve(Le);
         //read struct
         stream->read(&sz ,sizeof(sz));
         CMat ma;
         for(i=0; i<Le; i++)
         {
             stream->read(&ma,sz);
-            _dMats[i]=ma;
+            _dMats.emplace_back(ma);
 
             //read magic separateur
             stream->read(s,2);
@@ -521,28 +521,27 @@ bool ScheduleSolution::parkShift(const int Sindex,bool ABool)
 
 bool  ScheduleSolution::checkDT(const int Sindex,CDayTable* dt)
 {
-    int day,h;
+  
     bool result,checked;
-    CShift* se;
     result=false;
     checked=false;
-    se=&(_dShifts[Sindex]);
-    day=se->day ;
-    h=se->hour  ;
-    if((day<0)||(day>10)||(h<0)||(h>15))
+    auto se=&(_dShifts[Sindex]);
+    int day=se->day ;
+    int hour=se->hour  ;
+    if((day<0)||(day>10)||(hour <0)||(hour >15))
     {
         parkShift(Sindex,true);
         return false;
     }
 
-    if ((*dt)[day][h] != Sindex) {
+    if ((*dt)[day][hour] != Sindex) {
         return false;
     }
-    for (day=0; day<=5; day++)
-        for (h=0; h<=15; h++)
-            if ((*dt)[day][h]==Sindex)
+    for (int d=0; d<=5; d++)
+        for (int h=0; h<=15; h++)
+            if ((*dt)[d][h]==Sindex)
             {
-                result=((se->day==day)
+                result=((se->day==d)
                         &&(h>=se->hour)
                         &&(h<=se->hour+se->length-1));
                 checked=(h>=(se->hour+se->length-1));
@@ -552,7 +551,7 @@ bool  ScheduleSolution::checkDT(const int Sindex,CDayTable* dt)
     return true;
 }
 
-bool  ScheduleSolution::CheckAllDT(const int Sindex)
+bool  ScheduleSolution::checkAllDT(const int Sindex)
 {
     CClasse* Cl;
     CCroom *Sa;
@@ -694,7 +693,7 @@ bool   ScheduleSolution::checkProcessedShifts()
     while (si<_dShifts.size())
     {
 
-        if  (!CheckAllDT(si))
+        if  (!checkAllDT(si))
             return false;
         si++;
     }
@@ -718,7 +717,7 @@ bool ScheduleSolution::setLink(const int s1,const int s2,ELinkType Alink)
         _dShifts[s2].groupedwith=s1;
         _dShifts[s1].dogroupwith=s2;
         _dShifts[s2].dogroupwith=-1;
-        FModified=true;
+        _modified=true;
         break;
 
     case ltClear:
@@ -727,7 +726,7 @@ bool ScheduleSolution::setLink(const int s1,const int s2,ELinkType Alink)
         _dShifts[s2].groupedwith=-1;
         _dShifts[s1].dogroupwith=-1;
         _dShifts[s2].dogroupwith=-1;
-        FModified=true;
+        _modified=true;
         break;
 
     }
@@ -738,7 +737,7 @@ bool ScheduleSolution::fillCroom(const int AShift,const int ACroom,const int ADa
                              const EFillMode fo,const int gw,bool abool)
 {
 
-    int i=0;
+   
     bool result=false;
     int du=_dShifts[AShift].length;
     int classei=_dShifts[AShift].cindex;
@@ -757,7 +756,7 @@ bool ScheduleSolution::fillCroom(const int AShift,const int ACroom,const int ADa
         _dShifts[AShift].day=ADay;
         _dShifts[AShift].doAlternatewith=(int)fo;
 
-        for (i= 0; i<du; i++)
+        for (int i= 0; i<du; i++)
         {
             if ((fo==foMixte)||(fo==foWeekA))
             {
@@ -780,7 +779,7 @@ bool ScheduleSolution::fillCroom(const int AShift,const int ACroom,const int ADa
     else
     {
 
-        for (i= 0; i<du; i++)
+        for (int i= 0; i<du; i++)
         {
 
             if ((fo==foMixte)||(fo==foWeekA))
@@ -818,21 +817,20 @@ bool ScheduleSolution::fillCroom(const int AShift,const int ACroom,const int ADa
 void ScheduleSolution::clearAllDT()
 {
 
-    int d,h,i;
-    for (d= 0; d<11; d++)
-        for (h= 0; h<=15; h++)
+    for (int d= 0; d<11; d++)
+        for (int h= 0; h<=15; h++)
         {
-            for (i= 0; i< _dClasses.size(); i++)
+            for (int i= 0; i< _dClasses.size(); i++)
             {
                 _dClasses[i].weeka[d][h]=-1;
                 _dClasses[i].weekb[d][h]=-1;
             }
-            for (i= 0; i<CroomTableCount(); i++)
+            for (int i= 0; i<CroomTableCount(); i++)
             {
                 _dCRooms[i].weeka[d][h]=-1;
                 _dCRooms[i].weekb[d][h]=-1;
             }
-            for (i= 0; i<ProfTableCount(); i++)
+            for (int i= 0; i<ProfTableCount(); i++)
             {
                 _dProfs[i].weeka[d][h]=-1;
                 _dProfs[i].weekb[d][h]=-1;
@@ -917,11 +915,11 @@ bool ScheduleSolution::CanBeByGroup(const int Se1,const int Se2,const int Aday,c
 
 void ScheduleSolution::shellSort()
 {
-    int n, i, j;
+    int n, p;
     CShift *pSe;
 
-    n=0;
     int Le=_dShifts.size();
+    n=0;
     while(n<Le)
     {
         n=3*n+1;
@@ -930,17 +928,17 @@ void ScheduleSolution::shellSort()
     while(n!=0)
     {
         n=n/3;
-        for (i=n; i<Le; i++)
+        for (int i=n; i<Le; i++)
         {
             pSe=&_dShifts[i];
-            j=i;
+            p=i;
 
-            while((j>(n-1)) && (_dShifts[j-n].length>pSe->length))
+            while((p>(n-1)) && (_dShifts[p-n].length>pSe->length))
             {
-                _dShifts[j]=_dShifts[j-n];
-                j=j-n;
+                _dShifts[p]=_dShifts[p-n];
+                p=p-n;
             }
-            _dShifts[j]=*pSe;
+            _dShifts[p]=*pSe;
         }
     }
 }
@@ -953,7 +951,7 @@ bool ScheduleSolution::clearShift(const int se,bool abool)
   *
   * (documentation goes here)
   */
-CMat* ScheduleSolution::MatTable()
+std::vector <CMat>& ScheduleSolution::MatTable()
 {
     return _dMats;
 }
@@ -962,25 +960,27 @@ CMat* ScheduleSolution::MatTable()
   *
   * (documentation goes here)
   */
-CProf* ScheduleSolution::ProfTable()
+std::vector <CProf>& ScheduleSolution::ProfTable()
 {
     return _dProfs;
 }
 
-/** @brief (one liner)
-  *
-  * (documentation goes here)
-  */
-std::vector<CShift>& ScheduleSolution::ShiftTable()
-{
-    return _dShifts;
-}
 
+
+CShift* ScheduleSolution::Shift(const int ind) {
+    return &_dShifts.at(ind);
+}
+CProf* ScheduleSolution::Prof(const int ind) {
+    return &_dProfs.at(ind);
+}
+CMat* ScheduleSolution::Mat(const int ind) {
+    return &_dMats.at(ind);
+}
 /** @brief (one liner)
   *
   * (documentation goes here)
   */
-CCroom* ScheduleSolution::CroomTable()
+std::vector <CCroom>& ScheduleSolution::CroomTable()
 {
     return _dCRooms;
 }

@@ -14,30 +14,31 @@ public:
 
     private:
 
-        bool FModified;
+        bool _modified;
         struct Stats {
             int shifts, crooms, classes, profs, mats;
+            Stats(): shifts(0),crooms(0),profs(0),mats(0){}
         };
         Stats _stats;
-        ScheduleConfig      _scheduleConfig;
+        ScheduleConfig              _scheduleConfig;
         std::vector<CClasse>        _dClasses;
-        CProf*          _dProfs;
-        CCroom*         _dCRooms;
-        std::vector<CShift>        _dShifts;
-        CMat*           _dMats;
+        std::vector<CProf>          _dProfs;
+        std::vector<CCroom>         _dCRooms;
+        std::vector<CShift>         _dShifts;
+        std::vector<CMat>           _dMats;
 
-        EOptimizeOptions _classesOptimizeOptions ;
-        EOptimizeOptions _profOptimizeOptions ;
-        EGlobalOptimizeOptions _globalOptimizeOptions ;
-        bool  checkDT(const int Sindex,CDayTable *dt);
-        bool  CheckAllDT(const int Sindex);
+        EOptimizeOptions            _classesOptimizeOptions ;
+        EOptimizeOptions            _profOptimizeOptions ;
+        EGlobalOptimizeOptions      _globalOptimizeOptions ;
+        bool        checkDT(const int Sindex,CDayTable *dt);
+        bool        checkAllDT(const int Sindex);
 
-        int getIdxByDaytable(CDayTable *Adt);
+        int         getIdxByDaytable(CDayTable *Adt);
     protected:
-        bool saveHeader(CFileStream* stream);
+        bool        saveHeader(CFileStream* stream);
         ScheduleConfig loadHeader(CFileStream* stream);
-        int readData(CFileStream* stream,WORD phase);
-        bool writeData(CFileStream* stream,WORD phase);
+        int         readData(CFileStream* stream,WORD phase);
+        bool        writeData(CFileStream* stream,WORD phase);
 public:
        bool         checkProcessedShifts();
        bool         clearShift(const int se,bool abool);
@@ -67,10 +68,13 @@ public:
        int          MatTableCount(void);
        int          CroomCountByType(int cr_type);
        std::vector<CClasse>&     ClasseTable();
-       CCroom*      CroomTable();
-       std::vector <CShift>&  ShiftTable();
-       CProf*       ProfTable();
-       CMat*        MatTable();
+       std::vector <CCroom>&      CroomTable();
+       std::vector <CProf>&       ProfTable();
+       std::vector <CMat>&        MatTable();
+      
+       CShift*      Shift(const int ind);
+       CProf*       Prof(const int ind);
+       CMat*        Mat(const int ind);
        ScheduleSolution::Stats&        stats() { return _stats; }
 };
 
