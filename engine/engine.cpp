@@ -279,8 +279,8 @@ void ScheduleEngine::doRandomize()
 void ScheduleEngine::doFillConstraintMap(){
     int j,d,h;
 #if  OPTIMIZE_BRANCHING ==1
- for (d=0 ; d<6; d++)
-  for (h=0 ; h<=15; h++)
+ for (d=0 ; d< WORKABLE_DAY_COUNT; d++)
+  for (h=0 ; h< HOUR_TICK_COUNT; h++)
    {
      FmhtLength_b[0][d][h]=0;
      FmhtLength_b[0][d][h]=0;
@@ -304,7 +304,7 @@ void ScheduleEngine::doFillConstraintMap(){
 
  /*
         FmhtLength_b[2][d][h]=((h % 2==0)&&( (h<=6)||((h>=8)&&(h<=13)) ));
-        FmhtLength_e[2][d][h]=((h % 2==0)&&( ((h>=2)&&(h<=8))||((h>=10)&&(h<=15)) ));
+        FmhtLength_e[2][d][h]=((h % 2==0)&&( ((h>=2)&&(h<=8))||((h>=10)&&(h<HOUR_TICK_COUNT)) ));
  */
         FmhtLength_b[3][d][h]=(h % 4==0);
         FmhtLength_b[4][d][h]=(h % 4==0);
@@ -316,8 +316,8 @@ void ScheduleEngine::doFillConstraintMap(){
 
    }
 
-  for (d=0 ; d<6; d++)
-   for (h=0 ; h<=15; h++)
+  for (d=0 ; d< WORKABLE_DAY_COUNT; d++)
+   for (h=0 ; h< HOUR_TICK_COUNT; h++)
    {
 
    for (j=0 ; j<_solution.stats().mats; j++)
@@ -408,8 +408,8 @@ void ScheduleEngine::initialize(const bool AReset)
     for (int i=0 ; i< MAX_CROOMTYPE_COUNT; i++){
       int c=_solution.CroomCountByType(i);
       // printf("type croom:%d        count:%d\n",i,tmpf);
-       for (int j=0 ; j<10; j++)
-          for (int k=0 ; k<16; k++)
+       for (int j=0 ; j< MAX_DAY_COUNT; j++)
+          for (int k=0 ; k< HOUR_TICK_COUNT; k++)
             FTypeCroomMapArray[i][j][k]=c ;
     }
 
@@ -517,14 +517,14 @@ bool ScheduleEngine::startSearching()
             //next process hour
             _processHour.start++;
             //if reach last hour
-            if (_processHour.start>15) 
+            if (_processHour.start>= HOUR_TICK_COUNT)
             {
 #if USE_BACKTRACKING
 
 #else
                 retry();
 #endif
-            }//end  if (_processHour.start>15) 
+            }//end  if (_processHour.start>=HOUR_TICK_COUNT) 
         } //end not processed
 
 
@@ -714,7 +714,7 @@ bool ScheduleEngine::fillCroom(bool abool)
         FTypeCroomMapArray[_current.pShift->croom_type][_processHour.day][_processHour.start]--;
        /* if (_after_break_hour==true)
             _profs_bh.count++;
-        if((_profs_bh.count>0)&&(_processHour.end!=8)&&(_processHour.end!=16)&&(_solution.ProfTable()[curpindex].weeka[_processHour.day][_processHour.end]!=-1))
+        if((_profs_bh.count>0)&&(_processHour.end!=8)&&(_processHour.end!=HOUR_TICK_COUNT)&&(_solution.ProfTable()[curpindex].weeka[_processHour.day][_processHour.end]!=-1))
             _profs_bh.count--;
 */
         //dec delta
@@ -843,13 +843,13 @@ void ScheduleEngine::initStartDay()
 void ScheduleEngine::nextDay()
 {
     _processHour.day++;
-    _processHour.day=_processHour.day % 6;
+    _processHour.day=_processHour.day % WORKABLE_DAY_COUNT;
     _processHour.end=_processHour.start+ _current.pShift->length;
    // _after_break_hour=(_processHour.start>0) && (_processHour.start!=8) && (_solution.ProfTable()[curpindex].weeka[_processHour.day][_processHour.start-1]==-1);
     _current.isForbidden=
         (_processHour.day== _current.fday)
         || (_matMapDT[_current.pShift->cindex][_current.pShift->mindex][_processHour.day]==1)//no 2 mat in same day
-        ||( _processHour.end>16) //evening
+        ||( _processHour.end> HOUR_TICK_COUNT) //evening
         || ((_processHour.start<8)&&( _processHour.end>8))//morning
 
 #if  OPTIMIZE_BRANCHING

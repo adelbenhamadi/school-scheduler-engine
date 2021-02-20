@@ -10,11 +10,16 @@ const unsigned int MAX_MAT_COUNT = 64;
 const unsigned int MAX_SHIFT_COUNT = 100000;
 const unsigned int MAX_CROOMTYPE_COUNT = 32;
 
-typedef int CDayTable[11][16];
-typedef DWORD CBitDayTable[11];
-typedef unsigned int CMapDayHoursTable[11][16];
-typedef bool CMapDayTable[MAX_MAT_COUNT][6];
-typedef bool CMapHourTable[11][16];
+const unsigned int HOUR_TICK_COUNT = 16;
+const unsigned int WORKABLE_DAY_COUNT = 6;
+const unsigned int PARK_DAY_COUNT = 5;
+const unsigned int MAX_DAY_COUNT = WORKABLE_DAY_COUNT + PARK_DAY_COUNT;
+
+typedef int CDayTable[MAX_DAY_COUNT][ HOUR_TICK_COUNT ];
+typedef DWORD CBitDayTable[MAX_DAY_COUNT];
+typedef unsigned int CMapDayHoursTable[MAX_DAY_COUNT][ HOUR_TICK_COUNT ];
+typedef bool CMapDayTable[MAX_MAT_COUNT][ WORKABLE_DAY_COUNT ];
+typedef bool CMapHourTable[MAX_DAY_COUNT][ HOUR_TICK_COUNT ];
 
 enum EEncryptMode{ ecmM1, ecmM2 };
 enum ECompressionMode{ crmMode1, crmMode2 };

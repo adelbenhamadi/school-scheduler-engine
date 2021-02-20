@@ -366,7 +366,7 @@ int ScheduleSolution::getOrphinedShiftByDay(const int AIndex,const int ADay,cons
     tmpA=0;
     tmpB=0;
     //check 1
-    for (h=0 ; h<=7; h++)
+    for (h=0 ; h<8; h++)
     {
         tmpA= tmpA+((*wa)[ADay][h]!=-1) ;
         tmpB= tmpB+((*wb)[ADay][h]!=-1) ;
@@ -376,7 +376,7 @@ int ScheduleSolution::getOrphinedShiftByDay(const int AIndex,const int ADay,cons
 
     tmpA=0;
     tmpB=0;
-    for (h=8 ; h<=15; h++)
+    for (h=8 ; h< HOUR_TICK_COUNT; h++)
     {
         tmpA= tmpA+((*wa)[ADay][h]!=-1) ;
         tmpB= tmpB+((*wb)[ADay][h]!=-1) ;
@@ -389,46 +389,45 @@ int ScheduleSolution::getOrphinedShift(const int AIndex,const EScheduleMode emMo
 {
     int d;
     int result=0;
-    for(d=0; d<=5; d++)
+    for(d=0; d< WORKABLE_DAY_COUNT; d++)
         result=result+getOrphinedShiftByDay(AIndex,d,emMode);
     return result;
 }
 int ScheduleSolution::getIdxByDaytable(CDayTable *Adt)
 {
-    int Se=-1;
-    int ADay=0;
+    int sh=-1;
+
     int result=0;
-    int h,du;
+    int du;
     bool check1,check2;
-    while (ADay<=5)
-    {
-        h=0;
-        while (h<15)
+    for(int d=0;d< WORKABLE_DAY_COUNT;d++)
+    {       
+        for(int h=0;h< HOUR_TICK_COUNT;h++)
         {
-            Se=(*Adt)[ADay][h];
-            if (Se!=-1)
+            sh=(*Adt)[d][h];
+            if (sh!=-1)
             {
-                du=_dShifts[Se].length;
+                du=_dShifts[sh].length;
                 check1=(
                            ((h+du<6)||((h>=8)&&(h+du<14)))       &&
-                           ((*Adt)[ADay][h+du]==-1)              &&
-                           ((*Adt)[ADay][h+du+1]==-1)            &&
-                           ((*Adt)[ADay][h+du+2]!=-1)
+                           ((*Adt)[d][h+du]==-1)              &&
+                           ((*Adt)[d][h+du+1]==-1)            &&
+                           ((*Adt)[d][h+du+2]!=-1)
                        );
                 check2=(
                            ((h+du<4)||((h>=8)&&(h+du<12)))        &&
-                           ((*Adt)[ADay][h+du]==-1)              &&
-                           ((*Adt)[ADay][h+du+1]==-1)            &&
-                           ((*Adt)[ADay][h+du+2]==-1)            &&
-                           ((*Adt)[ADay][h+du+3]==-1)            &&
-                           ((*Adt)[ADay][h+du+4]!=-1)
+                           ((*Adt)[d][h+du]==-1)              &&
+                           ((*Adt)[d][h+du+1]==-1)            &&
+                           ((*Adt)[d][h+du+2]==-1)            &&
+                           ((*Adt)[d][h+du+3]==-1)            &&
+                           ((*Adt)[d][h+du+4]!=-1)
                        ) ;
                 result=result+check1+check2;
                 h=h+du-1;
             }
             h++;
         }
-        ADay++;
+      
     }
     return result;
 }
@@ -528,7 +527,7 @@ bool  ScheduleSolution::checkDT(const int Sindex,CDayTable* dt)
     auto se=&(_dShifts[Sindex]);
     int day=se->day ;
     int hour=se->hour  ;
-    if((day<0)||(day>10)||(hour <0)||(hour >15))
+    if((day<0)||(day>= MAX_DAY_COUNT)||(hour <0)||(hour >= HOUR_TICK_COUNT))
     {
         parkShift(Sindex,true);
         return false;
@@ -537,8 +536,8 @@ bool  ScheduleSolution::checkDT(const int Sindex,CDayTable* dt)
     if ((*dt)[day][hour] != Sindex) {
         return false;
     }
-    for (int d=0; d<=5; d++)
-        for (int h=0; h<=15; h++)
+    for (int d=0; d< WORKABLE_DAY_COUNT; d++)
+        for (int h=0; h< HOUR_TICK_COUNT; h++)
             if ((*dt)[d][h]==Sindex)
             {
                 result=((se->day==d)
@@ -817,8 +816,8 @@ bool ScheduleSolution::fillCroom(const int AShift,const int ACroom,const int ADa
 void ScheduleSolution::clearAllDT()
 {
 
-    for (int d= 0; d<11; d++)
-        for (int h= 0; h<=15; h++)
+    for (int d= 0; d< MAX_DAY_COUNT; d++)
+        for (int h= 0; h< HOUR_TICK_COUNT; h++)
         {
             for (int i= 0; i< _dClasses.size(); i++)
             {
@@ -898,15 +897,15 @@ EFillMode ScheduleSolution::getShiftFillMode(const int Se)
 bool ScheduleSolution::CanBeByGroup(const int Se1,const int Se2,const int Aday,const int Ahour)
 {
     return(
-              (Se1!=-1)&&(Se2!=-1)&&(Ahour>=0)&&(Ahour<=15)                     &&
-              (Se1!=Se2)                                                        &&
+              (Se1!=-1)&&(Se2!=-1)&&(Ahour>=0)&&(Ahour< HOUR_TICK_COUNT)                  &&
+              (Se1!=Se2)                                                    &&
               _dShifts[Se1].bygroup                                         &&
               _dShifts[Se2].bygroup                                         &&
               (_dShifts[Se2].dogroupwith==-1)                               &&
               (_dShifts[Se1].groupedwith==-1)                               &&
               (_dShifts[Se2].groupedwith==-1)                               &&
-              (_dShifts[Se1].every2weeks==_dShifts[Se2].every2weeks)            &&
-              (_dShifts[Se1].length==_dShifts[Se2].length)                &&
+              (_dShifts[Se1].every2weeks==_dShifts[Se2].every2weeks)        &&
+              (_dShifts[Se1].length==_dShifts[Se2].length)                  &&
               (Aday==_dShifts[Se2].day)                                     &&
               (Ahour==_dShifts[Se2].hour)
           );
